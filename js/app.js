@@ -1382,25 +1382,79 @@ function scareSound(level) {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const t = ctx.currentTime;
-    const master = ctx.createGain();
-    master.gain.setValueAtTime(0.0001, t);
-    master.gain.exponentialRampToValueAtTime(0.5 + level * 0.1, t + 0.03);
-    master.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
-    master.connect(ctx.destination);
-    // Cri : deux dents de scie qui plongent, légèrement désaccordées
-    for (const f0 of [880, 933]) {
-      const o = ctx.createOscillator(); o.type = 'sawtooth';
-      o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(70, t + 1.2);
-      o.connect(master); o.start(t); o.stop(t + 1.6);
+    const dur = 3.2;
+    const vol = 0.55 + level * 0.07;
+
+    // Réverbération de caverne : réponse impulsionnelle faite de bruit qui s'éteint
+    const rev = ctx.createConvolver();
+    const ir = ctx.createBuffer(2, ctx.sampleRate * 3, ctx.sampleRate);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = ir.getChannelData(ch);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3);
     }
-    // Souffle : bruit blanc filtré
-    const buf = ctx.createBuffer(1, ctx.sampleRate * 1.5, ctx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
-    const noise = ctx.createBufferSource(); noise.buffer = buf;
-    const filt = ctx.createBiquadFilter(); filt.type = 'bandpass'; filt.frequency.value = 900;
-    noise.connect(filt); filt.connect(master); noise.start(t);
-    setTimeout(() => ctx.close(), 2000);
+    rev.buffer = ir;
+    const out = ctx.createGain(); out.gain.value = vol; out.connect(ctx.destination);
+    const wet = ctx.createGain(); wet.gain.value = 0.7; rev.connect(wet); wet.connect(out);
+    const bus = ctx.createGain(); bus.connect(out); bus.connect(rev);
+
+    // Distorsion légère pour salir le son
+    const shaper = ctx.createWaveShaper();
+    const curve = new Float32Array(1024);
+    for (let i = 0; i < 1024; i++) { const x = i / 512 - 1; curve[i] = Math.tanh(x * 3); }
+    shaper.curve = curve; shaper.connect(bus);
+
+    const env = (node, a, peak, hold, rel) => {
+      node.gain.setValueAtTime(0.0001, t);
+      node.gain.exponentialRampToValueAtTime(peak, t + a);
+      node.gain.setValueAtTime(peak, t + a + hold);
+      node.gain.exponentialRampToValueAtTime(0.0001, t + a + hold + rel);
+    };
+
+    // 1. Impact : sinus grave qui plonge + claquement de bruit
+    const boom = ctx.createOscillator(); boom.type = 'sine';
+    boom.frequency.setValueAtTime(90, t); boom.frequency.exponentialRampToValueAtTime(28, t + 1.2);
+    const boomG = ctx.createGain(); env(boomG, 0.005, 1.2, 0.05, 1.4);
+    boom.connect(boomG); boomG.connect(shaper); boom.start(t); boom.stop(t + dur);
+
+    // 2. Accord dissonant (demi-tons et triton), cordes grinçantes filtrées qui s'ouvrent
+    const drone = ctx.createBiquadFilter(); drone.type = 'lowpass';
+    drone.frequency.setValueAtTime(300, t); drone.frequency.exponentialRampToValueAtTime(2400, t + 2.2);
+    drone.Q.value = 6; drone.connect(bus);
+    const droneG = ctx.createGain(); env(droneG, 0.6, 0.22, 1.2, 1.3); droneG.connect(drone);
+    for (const f of [110, 116.5, 155.6, 164.8, 233]) {
+      const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f;
+      const lfo = ctx.createOscillator(); lfo.frequency.value = 5 + Math.random() * 3;
+      const lfoG = ctx.createGain(); lfoG.gain.value = f * 0.012; lfo.connect(lfoG); lfoG.connect(o.frequency);
+      o.connect(droneG); o.start(t); lfo.start(t); o.stop(t + dur); lfo.stop(t + dur);
+    }
+
+    // 3. Crissement métallique : modulation de fréquence aiguë qui glisse, avec vibrato
+    const car = ctx.createOscillator(); car.type = 'triangle';
+    car.frequency.setValueAtTime(1800, t + 0.15); car.frequency.exponentialRampToValueAtTime(2900, t + 0.9);
+    car.frequency.exponentialRampToValueAtTime(900, t + 2.4);
+    const mod = ctx.createOscillator(); mod.frequency.value = 437;
+    const modG = ctx.createGain(); modG.gain.value = 900; mod.connect(modG); modG.connect(car.frequency);
+    const vib = ctx.createOscillator(); vib.frequency.value = 9;
+    const vibG = ctx.createGain(); vibG.gain.value = 60; vib.connect(vibG); vibG.connect(car.frequency);
+    const scrG = ctx.createGain();
+    scrG.gain.setValueAtTime(0.0001, t); scrG.gain.setValueAtTime(0.0001, t + 0.15);
+    scrG.gain.exponentialRampToValueAtTime(0.09, t + 0.4); scrG.gain.exponentialRampToValueAtTime(0.0001, t + 2.6);
+    car.connect(scrG); scrG.connect(bus);
+    [car, mod, vib].forEach((o) => { o.start(t); o.stop(t + dur); });
+
+    // 4. Souffle chuchoté qui palpite
+    const nbuf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
+    const nd = nbuf.getChannelData(0);
+    for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+    const noise = ctx.createBufferSource(); noise.buffer = nbuf;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1400; bp.Q.value = 3;
+    const nG = ctx.createGain(); env(nG, 0.3, 0.25, 1.4, 1.2);
+    const trem = ctx.createOscillator(); trem.frequency.value = 6;
+    const tremG = ctx.createGain(); tremG.gain.value = 0.15; trem.connect(tremG); tremG.connect(nG.gain);
+    noise.connect(bp); bp.connect(nG); nG.connect(bus);
+    noise.start(t); trem.start(t); trem.stop(t + dur);
+
+    setTimeout(() => ctx.close(), (dur + 3) * 1000);
   } catch { /* pas de son disponible */ }
 }
 
