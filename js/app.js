@@ -27,6 +27,8 @@ const ICONS = {
   down: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
   upload: '<path d="M12 20V9M7 14l5-5 5 5M5 4h14"/>',
   users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/>',
+  library: '<path d="M4 4h3v16H4zM9 4h3v16H9z"/><path d="M14.5 5.2l2.9-.8 3.6 14.6-2.9.7z"/>',
+  wand: '<path d="M4 20L15 9"/><path d="M17 3v3M15.5 4.5h3M20 8v2M19 9h2M13 4v1.5M12.2 4.8h1.6"/>',
   skull: '<path d="M12 3a8 8 0 0 0-8 8c0 3 1.5 4.8 3 5.6V20h10v-3.4c1.5-.8 3-2.6 3-5.6a8 8 0 0 0-8-8z"/><circle cx="9" cy="11" r="1.6"/><circle cx="15" cy="11" r="1.6"/><path d="M11 20v-2M13 20v-2"/>',
 };
 const icon = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]}</svg>`;
@@ -53,7 +55,7 @@ const ui = {
 
 const TABS = [
   ['fiche', 'Fiche', 'sheet'], ['sante', 'Santé', 'heart'], ['sac', 'Sac', 'bag'],
-  ['prog', 'Progrès', 'up'], ['carnet', 'Carnet', 'book'],
+  ['prog', 'Progrès', 'up'], ['carnet', 'Carnet', 'book'], ['biblio', 'Biblio', 'library'],
 ];
 
 // ================= Champs de formulaire =================
@@ -153,6 +155,7 @@ function render() {
     <nav class="tabs">${TABS.map(([k, l, i]) => `<button class="${ui.tab === k ? 'active' : ''}" data-act="tab" data-tab="${k}">${icon(i)}<span>${l}</span></button>`).join('')}</nav>
   </div>`;
   window.scrollTo(0, y);
+  if (ui.tab === 'biblio' && ui.libSearch) filterLib(ui.libSearch);
 }
 
 function topbar(c) {
@@ -440,19 +443,6 @@ function viewProg(c) {
         ${c.careerHistory.length ? `<h3>Carrières précédentes</h3>${c.careerHistory.map((h) => `<div class="small">• ${esc(h.name)} — ${esc(h.title || '')} (échelon ${h.level})</div>`).join('')}` : ''}
       </section>
       <section class="card">
-        <h2>Bibliothèque de carrières</h2>
-        ${libraryList()}
-        <p class="small muted" style="margin:8px 0 0">Les schémas saisis par toi et tes camarades. Coche « Enregistrer dans la bibliothèque » en modifiant une carrière pour la partager.${store.userUid ? '' : ' <b>Connecte-toi (nuage) pour voir ceux des autres.</b>'}</p>
-      </section>
-      <section class="card">
-        <h2>Bibliothèque de talents</h2>
-        ${store.talents().length ? `<input type="search" id="talentSearch" placeholder="Rechercher un talent…" style="margin-bottom:8px">
-          <div id="talentLib">${store.talents().map((t) => `<div class="list-item" data-act="openTalentInfo" data-id="${esc(t.id)}" data-search="${esc(R.norm([t.name, ...(t.aliases || []), t.desc].join(' ')))}" role="button">
-            <span class="li-main"><div class="li-title">${esc(t.name)}</div><div class="li-sub">${esc(t.desc || '')}</div></span>
-            <span class="badge soft" title="Maximum">${esc(maxShort(t.max))}</span></div>`).join('')}</div>`
-          : '<div class="empty">Aucun talent. Importe un fichier de talents via Menu ⋮ > Importer.</div>'}
-      </section>
-      <section class="card">
         <h2>Coûts en XP</h2>
         <table class="small" style="width:100%;border-collapse:collapse;text-align:center">
           <tr class="muted"><th style="text-align:left">Augmentations</th><th>Caract.</th><th>Comp.</th></tr>
@@ -560,8 +550,8 @@ function viewCarnet(c) {
     <div class="stack">
       <section class="card">
         <h2>Sorts et prières</h2>
-        ${c.spells.map((s, i) => `<div class="list-item" data-act="editSpell" data-i="${i}" role="button"><span class="badge">${esc(s.cn || '–')}</span><span class="li-main"><div class="li-title">${esc(s.name)}</div><div class="li-sub">${[s.range && `Portée ${s.range}`, s.target && `Cible ${s.target}`, s.duration && `Durée ${s.duration}`].filter(Boolean).map(esc).join(' · ')}${s.effect ? ` — ${esc(s.effect)}` : ''}</div></span></div>`).join('') || '<div class="empty">Aucun sort ni prière.</div>'}
-        <div class="add-row"><button class="btn ghost small" data-act="editSpell" data-i="-1">${icon('plus')} Sort / prière</button></div>
+        ${c.spells.map((s, i) => `<div class="list-item" data-act="editSpell" data-i="${i}" role="button"><span class="badge" title="NI">${esc(s.cn || '–')}</span><span class="li-main"><div class="li-title">${esc(s.name)}${s.lore ? ` <span class="small muted">· ${esc(s.lore)}</span>` : ''}</div><div class="li-sub">${spellMeta(c, s).map(esc).join(' · ')}${s.effect ? ` — ${esc(s.effect)}` : ''}</div></span></div>`).join('') || '<div class="empty">Aucun sort ni prière.</div>'}
+        <div class="add-row"><button class="btn ghost small" data-act="editSpell" data-i="-1">${icon('plus')} Sort / prière</button>${store.spells().length ? `<button class="btn ghost small" data-act="tab" data-tab="biblio">${icon('library')} Parcourir les sorts</button>` : ''}</div>
       </section>
       <section class="card">
         <h2>Psychologie</h2>${bind('psychology', c.psychology, 'area')}
@@ -574,7 +564,53 @@ function viewCarnet(c) {
   </div>`;
 }
 
-const VIEWS = { fiche: viewFiche, sante: viewSante, sac: viewSac, prog: viewProg, carnet: viewCarnet };
+// ---------- Bibliothèque : carrières, talents, sorts ----------
+function spellMeta(c, s) {
+  const calc = (txt) => {
+    const v = R.spellValue(c, txt);
+    return v != null ? `${txt} (= ${v})` : txt;
+  };
+  return [s.range && `Portée ${calc(s.range)}`, s.target && `Cible ${calc(s.target)}`, s.duration && `Durée ${calc(s.duration)}`].filter(Boolean);
+}
+
+function viewBiblio(c) {
+  const tab = ui.libTab || 'careers';
+  const counts = { careers: store.careers().length, talents: store.talents().length, spells: store.spells().length };
+  const searchRow = (t) => `data-search="${esc(R.norm(t))}"`;
+  let list = '';
+  if (tab === 'careers') {
+    list = libraryList();
+  } else if (tab === 'talents') {
+    list = store.talents().map((t) => `<div class="list-item" data-act="openTalentInfo" data-id="${esc(t.id)}" ${searchRow([t.name, ...(t.aliases || []), t.desc, t.tests].join(' '))} role="button">
+      <span class="li-main"><div class="li-title">${esc(t.name)}${c.talents.some((x) => store.findTalent(x.name)?.id === t.id) ? ' <span class="tal">✓</span>' : ''}</div><div class="li-sub">${esc(t.desc || '')}</div></span>
+      <span class="badge soft" title="Maximum">${esc(maxShort(t.max))}</span></div>`).join('') || '<div class="empty">Aucun talent. Importe un fichier de talents via Menu ⋮ > Importer.</div>';
+  } else {
+    const groups = {};
+    for (const s of store.spells()) (groups[s.lore || 'Autres'] ||= []).push(s);
+    const order = (g) => (g === 'Sort Mineur' ? '0' : g === 'Sort des Arcanes' ? '1' : '2' + g);
+    list = Object.keys(groups).sort((a, b) => order(a).localeCompare(order(b), 'fr')).map((g) => `<div class="lib-group" data-group><h3>${esc(g)}</h3>${groups[g].map((s) => `
+      <div class="list-item" data-act="openSpellInfo" data-id="${esc(s.id)}" ${searchRow([s.name, s.lore, s.desc].join(' '))} role="button">
+        <span class="badge" title="NI">${esc(s.cn || '–')}</span>
+        <span class="li-main"><div class="li-title">${esc(s.name)}${c.spells.some((x) => R.norm(x.name) === R.norm(s.name)) ? ' <span class="tal">✓</span>' : ''}</div><div class="li-sub">${esc(s.desc || '')}</div></span>
+      </div>`).join('')}</div>`).join('') || '<div class="empty">Aucun sort. Importe un fichier de sorts via Menu ⋮ > Importer.</div>';
+  }
+  const labels = { careers: 'Carrières', talents: 'Talents', spells: 'Sorts' };
+  return `<section class="card">
+    <h2>Bibliothèque</h2>
+    <div class="level-tabs">${Object.keys(labels).map((k) => `<button class="chip ${tab === k ? 'on' : ''}" data-act="libTab" data-t="${k}">${labels[k]} <small>${counts[k]}</small></button>`).join('')}</div>
+    ${tab !== 'careers' ? `<input type="search" id="libSearch" placeholder="Rechercher…" style="margin-bottom:8px" value="${esc(ui.libSearch || '')}">` : ''}
+    <div id="libList">${list}</div>
+    <p class="small muted" style="margin:10px 0 0">Partagée avec tes camarades. ✓ = déjà sur la fiche de ${esc(c.name)}.${store.userUid ? '' : ' <b>Connecte-toi (nuage) pour voir les ajouts des autres.</b>'} Pour en ajouter : Menu ⋮ > Importer.</p>
+  </section>`;
+}
+
+function filterLib(q) {
+  const n = R.norm(q);
+  document.querySelectorAll('#libList [data-search]').forEach((row) => { row.hidden = !!n && !row.dataset.search.includes(n); });
+  document.querySelectorAll('#libList [data-group]').forEach((g) => { g.hidden = !g.querySelector('[data-search]:not([hidden])'); });
+}
+
+const VIEWS = { fiche: viewFiche, sante: viewSante, sac: viewSac, prog: viewProg, carnet: viewCarnet, biblio: viewBiblio };
 
 // ================= Actions =================
 const A = {
@@ -894,7 +930,64 @@ const A = {
     commit();
   },
   editSpell(el) {
-    editListItem('spells', +el.dataset.i, 'Sort / prière', [['name', 'Nom', 'text', 'full'], ['cn', 'NI', 'text'], ['range', 'Portée', 'text'], ['target', 'Cible', 'text'], ['duration', 'Durée', 'text'], ['effect', 'Effets', 'area', 'full']], { name: '', cn: '', range: '', target: '', duration: '', effect: '' });
+    const c = C(); const i = +el.dataset.i;
+    const s = c.spells[i] || { name: '', lore: '', cn: '', range: '', target: '', duration: '', effect: '' };
+    const keys = ['lore', 'cn', 'range', 'target', 'duration'];
+    openDialog({
+      title: i >= 0 ? s.name : 'Sort / prière',
+      body: `<div class="fields">
+        <div class="field full"><label>Nom</label><input name="name" list="spellNames" value="${esc(s.name)}" autocomplete="off" autofocus placeholder="Tape pour chercher dans la bibliothèque"></div>
+        <datalist id="spellNames">${store.spells().map((x) => `<option value="${esc(x.name)}">${esc(x.lore || '')}</option>`).join('')}</datalist>
+        <div class="full" id="spellHint"></div>
+        ${F.text('lore', 'Tradition', s.lore || '', 'full')}${F.text('cn', 'NI', s.cn)}${F.text('range', 'Portée', s.range)}
+        ${F.text('target', 'Cible', s.target)}${F.text('duration', 'Durée', s.duration)}${F.area('effect', 'Effets', s.effect)}
+      </div>`,
+      onOpen: (f) => {
+        const upd = () => {
+          const lib = store.findSpell(f.name.value);
+          f.querySelector('#spellHint').innerHTML = lib && R.norm(lib.name) === R.norm(f.name.value) && i < 0
+            ? '<p class="small muted" style="margin:0 0 8px">📚 Rempli depuis la bibliothèque.</p>' : '';
+          if (!lib || i >= 0) return;
+          for (const k of keys) f[k].value = lib[k] || '';
+          f.effect.value = lib.desc || '';
+        };
+        f.name.oninput = upd;
+      },
+      actions: [
+        ...(i >= 0 ? [{ label: icon('trash'), cls: 'ghost', onClick: () => { c.spells.splice(i, 1); commit(); } }, 'spacer'] : []),
+        cancel,
+        { label: 'Enregistrer', primary: true, onClick: (f) => {
+          const lib = store.findSpell(f.name.value);
+          s.name = (lib && R.norm(lib.name) === R.norm(f.name.value) ? lib.name : f.name.value.trim()) || 'Sort';
+          for (const k of keys) s[k] = f[k].value.trim();
+          s.effect = f.effect.value.trim();
+          if (i < 0) c.spells.push(s);
+          commit();
+        } },
+      ],
+    });
+  },
+  libTab(el) { ui.libTab = el.dataset.t; ui.libSearch = ''; render(); },
+  openSpellInfo(el) {
+    const s = store.spells().find((x) => x.id === el.dataset.id);
+    if (!s) return;
+    const c = C();
+    const have = c.spells.some((x) => R.norm(x.name) === R.norm(s.name));
+    openDialog({
+      title: s.name,
+      body: `<p class="small muted" style="margin-top:0">${esc(s.lore || '')}${s.cn !== '' ? ` · NI ${esc(s.cn)}` : ''}</p>
+        <p class="small">${spellMeta(c, s).map(esc).join('<br>')}</p>
+        <p>${esc(s.desc || '')}</p>
+        ${have ? `<p class="small muted">${esc(c.name)} connaît déjà ce sort.</p>` : ''}`,
+      actions: [
+        ...(store.canEditCareer(s) ? [{ label: icon('trash'), cls: 'ghost', onClick: () => { store.removeSpell(s.id); render(); } }, 'spacer'] : []),
+        { label: 'Fermer', cls: 'ghost' },
+        ...(!have ? [{ label: 'Ajouter à mon personnage', primary: true, onClick: () => {
+          c.spells.push({ name: s.name, lore: s.lore, cn: s.cn, range: s.range, target: s.target, duration: s.duration, effect: s.desc });
+          commit(); toast(`${s.name} ajouté au Carnet`);
+        } }] : []),
+      ],
+    });
   },
 
   // --- Carrière ---
@@ -1093,6 +1186,7 @@ const A = {
             dlg.close(); render();
             toast(n?.careers != null ? `${n.careers} carrière(s) ajoutée(s) à la bibliothèque`
               : n?.talents != null ? `${n.talents} talent(s) ajouté(s) à la bibliothèque`
+              : n?.spells != null ? `${n.spells} sort(s) ajouté(s) à la bibliothèque`
               : `${n} personnage(s) importé(s)`);
           } catch { toast('Fichier invalide'); }
         };
@@ -1206,11 +1300,7 @@ $app.addEventListener('click', (e) => {
 // Champs liés : enregistrement à la frappe, rafraîchissement à la validation
 $app.addEventListener('input', (e) => {
   const el = e.target;
-  if (el.id === 'talentSearch') {
-    const q = R.norm(el.value);
-    document.querySelectorAll('#talentLib [data-search]').forEach((row) => { row.hidden = !!q && !row.dataset.search.includes(q); });
-    return;
-  }
+  if (el.id === 'libSearch') { ui.libSearch = el.value; filterLib(el.value); return; }
   if (!el.dataset.bind) return;
   setPath(C(), el.dataset.bind, el.hasAttribute('data-num') ? num(el.value) : el.value);
   commit(false);

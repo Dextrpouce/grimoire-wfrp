@@ -16,9 +16,12 @@ const data = load(DATA_KEY, { characters: {}, deleted: {} });
 const lib = load(LIB_KEY, { careers: {}, removed: [] });
 lib.talents ??= {};
 lib.removedTalents ??= [];
+lib.spells ??= {};
+lib.removedSpells ??= [];
 const LIBS = {
   careers: { items: 'careers', removed: 'removed' },
   talents: { items: 'talents', removed: 'removedTalents' },
+  spells: { items: 'spells', removed: 'removedSpells' },
 };
 const libUid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 const normName = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
@@ -115,6 +118,16 @@ export const store = {
   },
   saveTalent(tpl) { return libSave('talents', tpl); },
   removeTalent(id) { return libRemove('talents', id); },
+
+  // ----- Bibliothèque de sorts -----
+  spells() { return Object.values(lib.spells).sort((a, b) => a.name.localeCompare(b.name, 'fr')); },
+  findSpell(name) {
+    const n = normName(name);
+    const all = this.spells().filter((t) => normName(t.name) === n);
+    return all.find((t) => this.canEditCareer(t)) || all[0] || null;
+  },
+  saveSpell(tpl) { return libSave('spells', tpl); },
+  removeSpell(id) { return libRemove('spells', id); },
   exportAll() { return JSON.stringify({ format: 'whfrp4', version: 1, ...data }, null, 2); },
   importAll(json) {
     const incoming = JSON.parse(json);
@@ -153,6 +166,24 @@ export const store = {
         n++;
       }
       return { talents: n };
+    }
+    // Fichier de sorts : { format: 'whfrp4-spells', replace?, spells: [...] }
+    if (incoming.format === 'whfrp4-spells') {
+      let n = 0;
+      if (incoming.replace) {
+        const keep = new Set((incoming.spells || []).map((t) => normName(t.name)));
+        for (const t of this.spells()) if (this.canEditCareer(t) && !keep.has(normName(t.name))) this.removeSpell(t.id);
+      }
+      for (const t of incoming.spells || []) {
+        if (!t?.name) continue;
+        const existing = this.findSpell(t.name);
+        this.saveSpell({
+          id: existing && this.canEditCareer(existing) ? existing.id : null,
+          name: t.name, lore: t.lore || '', cn: String(t.cn ?? ''), range: t.range || '', target: t.target || '', duration: t.duration || '', desc: t.desc || '',
+        });
+        n++;
+      }
+      return { spells: n };
     }
     const chars = incoming.characters ? Object.values(incoming.characters) : [incoming];
     let n = 0;
@@ -193,6 +224,7 @@ export const store = {
       persist();
       await syncLib('careers');
       await syncLib('talents');
+      await syncLib('spells');
       setStatus(meta.dirty ? 'pending' : 'synced', `Synchronisé (${cloud.user().email})`, { reloaded: changed });
     } catch (e) {
       const msg = e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request' ? 'Connexion annulée'

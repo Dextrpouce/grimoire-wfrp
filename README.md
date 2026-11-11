@@ -9,6 +9,7 @@ Application pour téléphone et tablette Android qui gère ton personnage de **W
 - **Mode progression** (bouton ★ XP en haut) : des boutons **+** apparaissent à côté des caractéristiques, compétences et talents **seulement si tu as assez d'XP**. Les boutons dorés suivent ta carrière (coût normal), les rosés sont hors carrière (coût ×2).
 - **Classes et carrières** : choix de la classe (Guerriers, Roublards…), carrières proposées selon la classe, et **bibliothèque de carrières partagée** : un schéma saisi une fois par un joueur est réutilisable par tout le groupe.
 - **Bibliothèque de talents** : importe un fichier de talents (Menu ⋮ > Importer) ; à l'ajout d'un talent, la description se remplit seule, et le maximum (ex. « Bonus de I ») est calculé et respecté en mode progression.
+- **Biblio** : onglet regroupant les bibliothèques partagées (carrières, talents, sorts) avec recherche. Un sort ajouté depuis la bibliothèque arrive dans le Carnet avec sa portée et sa durée calculées pour ton personnage (ex. « FM mètres (= 42) »).
 - **Carnet** : identité, ambitions, groupe, sorts et prières, psychologie, mutations, notes.
 - Plusieurs personnages, export/import en fichier JSON.
 
@@ -51,6 +52,12 @@ Tu n'as rien à faire tourner chez toi. Les limites gratuites de Firebase (50 00
          allow read, write: if request.auth != null && request.auth.uid == uid;
        }
        match /talents/{id} {
+         allow read: if request.auth != null;
+         allow create: if request.auth != null && request.resource.data.authorUid == request.auth.uid;
+         allow update: if request.auth != null && resource.data.authorUid == request.auth.uid && request.resource.data.authorUid == request.auth.uid;
+         allow delete: if request.auth != null && resource.data.authorUid == request.auth.uid;
+       }
+       match /spells/{id} {
          allow read: if request.auth != null;
          allow create: if request.auth != null && request.resource.data.authorUid == request.auth.uid;
          allow update: if request.auth != null && resource.data.authorUid == request.auth.uid && request.resource.data.authorUid == request.auth.uid;

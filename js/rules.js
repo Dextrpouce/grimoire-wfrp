@@ -168,6 +168,19 @@ export function woundsBreakdown(c) {
 }
 export const maxWounds = (c) => woundsBreakdown(c).total;
 
+// Valeur d'une portée / durée / zone de sort pour ce personnage :
+// « FM mètres » → valeur de FM, « Bonus FM Rounds » → bonus de FM, « Bonus Instinct minutes » → bonus d'I…
+const SPELL_WORDS = [[/force mentale|\bfm\b/, 'FM'], [/instinct|initiative/, 'I'], [/intelligence|\bint\b/, 'Int'],
+  [/endurance/, 'E'], [/sociabilite|\bsoc\b/, 'Soc'], [/agilite|\bag\b/, 'Ag'], [/force|\bf\b/, 'F']];
+export function spellValue(c, text) {
+  const s = norm(text);
+  const m = s.match(/(bonus\s+(de\s+|d')?)?(force mentale|fm|instinct|initiative|intelligence|int|endurance|sociabilite|soc|agilite|ag|force)\b/);
+  if (!m) return null;
+  const key = SPELL_WORDS.find(([re]) => re.test(m[3]))?.[1];
+  if (!key) return null;
+  return m[1] ? charBonus(c, key) : charValue(c, key);
+}
+
 const timesAny = (c, names) => names.reduce((n, name) => n + talentTimes(c, name), 0);
 
 export function movement(c) {
