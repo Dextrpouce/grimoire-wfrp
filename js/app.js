@@ -348,10 +348,7 @@ function viewSante(c) {
       </section>
       <section class="card" id="condsCard">
         <h2>États</h2>
-        <div class="conds">${R.CONDITIONS.map((cd) => {
-          const n = +c.health.conditions[cd.name] || 0;
-          return `<button class="cond ${n ? 'on' : ''}" data-act="cond" data-c="${esc(cd.name)}"><span class="cn">${cd.name}</span>${n ? `${cd.stack ? `<span class="badge gold">${n}</span>` : ''}<span class="cminus" data-act="condMinus" data-c="${esc(cd.name)}">−</span>` : ''}</button>`;
-        }).join('')}</div>
+        ${conditionsCard(c)}
       </section>
       <section class="card">
         <h2>Blessures critiques</h2>
@@ -390,6 +387,29 @@ function viewSante(c) {
     </div>
   </div>
   <div class="combat-end"><button class="btn ghost" data-act="adv" data-d="reset">Fin du combat · Avantage à 0</button><span class="small muted">+10 par point d'Avantage aux tests de combat (ajouté automatiquement aux jets).</span></div>`;
+}
+
+// Carte des états : actifs en grand (niveau, effet), les autres en pastilles « + »
+function conditionsCard(c) {
+  const lvl = (cd) => +c.health.conditions[cd.name] || 0;
+  const active = R.CONDITIONS.filter((cd) => lvl(cd) > 0);
+  const inactive = R.CONDITIONS.filter((cd) => lvl(cd) === 0);
+  const pen = R.conditionPenalty(c);
+  const needsRound = active.some((cd) => ['Hémorragique', 'Surpris', 'En flammes', 'Empoisonné'].includes(cd.name));
+  return `
+    ${pen.value ? `<div class="cond-pen">Malus à tous les tests : <b>${pen.value}</b> <span class="small">(${esc(pen.from.join(', '))})</span></div>` : ''}
+    ${active.length ? `<div class="cond-active">${active.map((cd) => `
+      <div class="cond-card">
+        <span class="cond-ico">${cd.icon}</span>
+        <div class="cond-body"><div class="cond-name">${esc(cd.name)}</div><div class="cond-eff">${esc(cd.effect)}</div></div>
+        <span class="step cond-step">
+          <button data-act="condMinus" data-c="${esc(cd.name)}" aria-label="Réduire">−</button>
+          ${cd.stack ? `<span class="val">${lvl(cd)}</span><button data-act="cond" data-c="${esc(cd.name)}" aria-label="Augmenter">+</button>` : ''}
+        </span>
+      </div>`).join('')}</div>` : '<div class="empty" style="padding:4px 0 10px">Aucun état. Tout va bien… pour l\'instant.</div>'}
+    ${needsRound ? `<button class="btn block" data-act="endRound" style="margin:4px 0 12px">⏳ Fin du round</button>` : ''}
+    <div class="flabel" style="margin-bottom:6px">Ajouter un état</div>
+    <div class="cond-add">${inactive.map((cd) => `<button class="cond-chip" data-act="cond" data-c="${esc(cd.name)}"><span>${cd.icon}</span> ${esc(cd.name)}</button>`).join('')}</div>`;
 }
 
 const stepper = (path, val) => `<span class="step"><button data-act="step" data-p="${path}" data-d="-1">−</button><span class="val">${+val || 0}</span><button data-act="step" data-p="${path}" data-d="1">+</button></span>`;
@@ -899,6 +919,22 @@ const A = {
         setTimeout(() => (t === 'c' ? A.rollChar({ dataset: { k: v } }) : A.rollSkill({ dataset: { id: v } })), 50);
       } }],
     });
+  },
+  endRound() {
+    const c = C(); const cond = c.health.conditions;
+    const notes = [];
+    const bleed = +cond['Hémorragique'] || 0;
+    if (bleed) {
+      const max = R.maxWounds(c);
+      const cur = Math.min(c.health.wounds ?? max, max);
+      c.health.wounds = Math.max(0, cur - bleed);
+      notes.push(`🩸 −${bleed} Blessure${bleed > 1 ? 's' : ''}${c.health.wounds === 0 ? ' (0 : danger de mort !)' : ''}`);
+    }
+    if (cond['Surpris']) { delete cond['Surpris']; notes.push('❗ Surpris retiré'); }
+    if (cond['En flammes']) notes.push('🔥 En flammes : applique les dégâts du feu');
+    if (cond['Empoisonné']) notes.push('☠️ Empoisonné : effet du poison');
+    commit();
+    toast(notes.join(' · ') || 'Fin du round');
   },
   scrollConds() { document.getElementById('condsCard')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); },
   fortuneSpend() {
@@ -1572,6 +1608,7 @@ function purifyEffect(c) {
 function openRoll({ title, label, base, combat = false, weapon = null }) {
   const c = C();
   const adv = +c.health.advantage || 0;
+  const condPen = R.conditionPenalty(c);
   let last = null;
   openDialog({
     title,
@@ -1581,6 +1618,7 @@ function openRoll({ title, label, base, combat = false, weapon = null }) {
         ${F.num('mod', 'Autre modificateur', 0)}
       </div>
       ${combat && adv ? `<label class="row small" style="margin:0 0 8px"><input type="checkbox" name="useAdv" checked style="width:auto"> Avantage : +${adv * 10}</label>` : ''}
+      ${condPen.value ? `<label class="row small" style="margin:0 0 8px"><input type="checkbox" name="useCond" checked style="width:auto"> États : ${condPen.value} <span class="muted">(${esc(condPen.from.join(', '))})</span></label>` : ''}
       <div class="roll-target">Cible : <b id="rTarget"></b></div>
       <div class="row" style="margin:10px 0">
         <button type="button" class="btn gold" id="rRandom" style="flex:1">${icon('die')} Lancer les dés</button>
@@ -1589,9 +1627,10 @@ function openRoll({ title, label, base, combat = false, weapon = null }) {
       </div>
       <div id="rResult"></div>`,
     onOpen: (f) => {
-      const target = () => Math.max(0, base + num(f.diff.value) + num(f.mod.value) + (f.useAdv?.checked ? adv * 10 : 0));
+      const target = () => Math.max(0, base + num(f.diff.value) + num(f.mod.value) + (f.useAdv?.checked ? adv * 10 : 0) + (f.useCond?.checked ? condPen.value : 0));
       const showTarget = () => { f.querySelector('#rTarget').textContent = target(); };
-      [f.diff, f.mod, f.useAdv].forEach((x) => x?.addEventListener('input', showTarget));
+      [f.diff, f.mod, f.useAdv, f.useCond].forEach((x) => x?.addEventListener('input', showTarget));
+      [f.useAdv, f.useCond].forEach((x) => x?.addEventListener('change', showTarget));
       f.diff.addEventListener('change', showTarget);
       showTarget();
       const show = (roll) => {

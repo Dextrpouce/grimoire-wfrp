@@ -469,3 +469,23 @@ label.chip:has(input:checked) { background: var(--blood); color: #fbe9d3; border
 .cb-cond { padding: 2px 10px; border-radius: 999px; background: var(--blood); color: #fbe9d3; font-size: 13px; font-weight: 600; }
 .combat-end { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; margin-top: 14px; text-align: center; }
 .combat-end .small { color: var(--on-dark-soft); }
+
+/* ---------- États (nouvelle carte) ---------- */
+.cond-pen { margin-bottom: 10px; padding: 8px 12px; border-radius: 10px; background: rgba(140, 28, 28, .12); border: 1px solid rgba(140, 28, 28, .4); color: var(--blood); font-size: 15px; }
+.cond-pen b { font-family: var(--font-title); font-size: 18px; }
+.cond-active { display: grid; gap: 8px; margin-bottom: 10px; }
+@media (min-width: 560px) { .cond-active { grid-template-columns: 1fr 1fr; } }
+.cond-card {
+  display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 8px; padding: 8px 8px 8px 10px;
+  border-radius: 12px; background: linear-gradient(#a52a24, var(--blood)); color: #fbe9d3; border: 1px solid #5d1010; box-shadow: 0 2px 0 #3b0909;
+}
+.cond-ico { font-size: 24px; line-height: 1; text-align: center; }
+.cond-body { min-width: 0; }
+.cond-name { font-family: var(--font-title); font-weight: 700; font-size: 15px; letter-spacing: .03em; }
+.cond-eff { font-size: 13px; line-height: 1.25; opacity: .9; }
+.cond-step { background: rgba(0, 0, 0, .25); border-color: rgba(0, 0, 0, .3); }
+.cond-step button { width: 34px; height: 34px; color: #fbe9d3; }
+.cond-step .val { min-width: 26px; color: var(--gold-hi); }
+.cond-add { display: flex; flex-wrap: wrap; gap: 6px; }
+.cond-chip { padding: 6px 12px; border-radius: 999px; border: 1px dashed rgba(60, 40, 22, .35); background: rgba(255, 255, 255, .3); color: var(--ink); font-size: 14px; }
+.cond-chip:active { background: rgba(140, 28, 28, .15); }

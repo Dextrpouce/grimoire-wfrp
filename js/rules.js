@@ -60,14 +60,33 @@ export const SPECIES = {
   'Ogre': { move: 6, sb: true },
 };
 
+// États : icône, aide-mémoire court (résumé, voir le livre pour le détail),
+// allTests = −10 par niveau à tous les tests (compté dans le malus du lanceur de dés)
 export const CONDITIONS = [
-  { name: 'À terre', stack: false }, { name: 'Assourdi', stack: true },
-  { name: 'Aveuglé', stack: true }, { name: 'Brisé', stack: true },
-  { name: 'Empêtré', stack: true }, { name: 'Empoisonné', stack: true },
-  { name: 'En flammes', stack: true }, { name: 'Épuisé', stack: true },
-  { name: 'Hémorragique', stack: true }, { name: 'Inconscient', stack: false },
-  { name: 'Sonné', stack: true }, { name: 'Surpris', stack: false },
+  { name: 'Hémorragique', stack: true, icon: '🩸', effect: 'Perd 1 Blessure par niveau à la fin du round.' },
+  { name: 'Sonné', stack: true, icon: '💫', allTests: true, effect: '−10 par niveau aux tests ; actions limitées.' },
+  { name: 'À terre', stack: false, icon: '⤵️', effect: 'Au sol : plus facile à toucher en mêlée. Se relever coûte un déplacement.' },
+  { name: 'Épuisé', stack: true, icon: '😮‍💨', allTests: true, effect: '−10 par niveau aux tests. Se soigne par le repos.' },
+  { name: 'Empoisonné', stack: true, icon: '☠️', allTests: true, effect: '−10 par niveau aux tests ; le poison continue d\'agir à chaque round.' },
+  { name: 'En flammes', stack: true, icon: '🔥', effect: 'Brûle à chaque fin de round tant que le feu n\'est pas éteint.' },
+  { name: 'Aveuglé', stack: true, icon: '🕶️', effect: '−10 par niveau aux tests utilisant la vue ; plus facile à toucher.' },
+  { name: 'Assourdi', stack: true, icon: '🔇', effect: '−10 par niveau aux tests utilisant l\'ouïe ; plus facile à surprendre.' },
+  { name: 'Empêtré', stack: true, icon: '🕸️', effect: 'Ne peut pas se déplacer ; −10 par niveau aux tests physiques.' },
+  { name: 'Brisé', stack: true, icon: '💔', allTests: true, effect: 'Terrifié : cherche à fuir ; −10 par niveau aux autres tests.' },
+  { name: 'Surpris', stack: false, icon: '❗', effect: 'Aucune action ce round ; disparaît à la fin du round.' },
+  { name: 'Inconscient', stack: false, icon: '💤', effect: 'Hors de combat, sans défense.' },
 ];
+
+// Malus des états qui touchent tous les tests : { value: -20, from: ['Sonné 1', 'Épuisé 1'] }
+export function conditionPenalty(c) {
+  let levels = 0;
+  const from = [];
+  for (const cd of CONDITIONS) {
+    const n = +c.health.conditions?.[cd.name] || 0;
+    if (cd.allTests && n > 0) { levels += n; from.push(`${cd.name} ${n}`); }
+  }
+  return { value: -10 * levels, from };
+}
 
 export const LOCATIONS = [
   { key: 'tete', name: 'Tête', range: '01-09' },
