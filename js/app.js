@@ -57,7 +57,7 @@ const ui = {
 
 const TABS = [
   ['fiche', 'Fiche', 'sheet'], ['sante', 'Combat', 'sword'], ['sac', 'Sac', 'bag'],
-  ['prog', 'Progrès', 'up'], ['carnet', 'Carnet', 'book'], ['biblio', 'Biblio', 'library'],
+  ['prog', 'Progrès', 'up'], ['carnet', 'Carnet', 'book'], ['magie', 'Magie', 'wand'], ['biblio', 'Biblio', 'library'],
 ];
 
 // ================= Champs de formulaire =================
@@ -149,12 +149,13 @@ const plusBtn = (c, cost, act, data, inCareer = true) => (cost <= avail(c)
 // ================= Rendu =================
 function render() {
   const c = C();
+  if (ui.tab === 'magie' && !R.isCaster(c)) ui.tab = 'carnet';
   const y = window.scrollY;
   $app.innerHTML = `<div class="shell ${ui.levelUp ? 'lvl' : ''}">
     ${topbar(c)}
     ${ui.levelUp ? `<div class="lvl-banner">${icon('star')}<span><b>Mode progression</b> — ${avail(c)} XP à dépenser. Les boutons <b>+</b> dorés apparaissent quand tu as assez d'XP ; les rosés sont hors carrière (coût ×2).</span></div>` : ''}
     <main>${VIEWS[ui.tab](c)}</main>
-    <nav class="tabs">${TABS.map(([k, l, i]) => `<button class="${ui.tab === k ? 'active' : ''}" data-act="tab" data-tab="${k}">${icon(i)}<span>${l}</span></button>`).join('')}</nav>
+    <nav class="tabs">${TABS.filter(([k]) => k !== 'magie' || R.isCaster(c)).map(([k, l, i]) => `<button class="${ui.tab === k ? 'active' : ''}" data-act="tab" data-tab="${k}">${icon(i)}<span>${l}</span></button>`).join('')}</nav>
   </div>`;
   window.scrollTo(0, y);
   if (ui.tab === 'biblio' && ui.libSearch) filterLib(ui.libSearch);
@@ -679,9 +680,14 @@ function viewCarnet(c) {
     </div>
     <div class="stack">
       <section class="card">
-        <h2>Sorts et prières</h2>
-        ${c.spells.map((s, i) => `<div class="list-item" data-act="editSpell" data-i="${i}" role="button"><span class="badge" title="NI">${esc(s.cn || '–')}</span><span class="li-main"><div class="li-title">${esc(s.name)}${s.lore ? ` <span class="small muted">· ${esc(s.lore)}</span>` : ''}</div><div class="li-sub">${spellMeta(c, s).map(esc).join(' · ')}${s.effect ? ` — ${esc(s.effect)}` : ''}</div></span></div>`).join('') || '<div class="empty">Aucun sort ni prière.</div>'}
-        <div class="add-row"><button class="btn ghost small" data-act="editSpell" data-i="-1">${icon('plus')} Sort / prière</button>${store.spells().length ? `<button class="btn ghost small" data-act="tab" data-tab="biblio">${icon('library')} Parcourir les sorts</button>` : ''}</div>
+        <h2>Magie</h2>
+        <div class="field"><label>Onglet Magie</label>
+          <select data-bind="magicTab" data-rerender>
+            <option value="" ${!c.magicTab ? 'selected' : ''}>Automatique (${R.isCaster({ ...c, magicTab: '' }) ? 'affiché' : 'masqué'})</option>
+            <option value="on" ${c.magicTab === 'on' ? 'selected' : ''}>Toujours afficher</option>
+            <option value="off" ${c.magicTab === 'off' ? 'selected' : ''}>Masquer</option>
+          </select></div>
+        <p class="small muted" style="margin:0">L'onglet apparaît tout seul si ton personnage a un talent de magie ou de foi (Magie des Arcanes, Magie Mineure, Béni, Invoquer…), des sorts, ou la compétence Langue (Magick), Focalisation ou Prière.${R.isCaster(c) ? ' <a href="#" data-act="tab" data-tab="magie">Ouvrir l’onglet Magie</a>' : ''}</p>
       </section>
       <section class="card">
         <h2>Psychologie</h2>${bind('psychology', c.psychology, 'area')}
@@ -746,7 +752,71 @@ function filterLib(q) {
   document.querySelectorAll('#libList [data-group]').forEach((g) => { g.hidden = !g.querySelector('[data-search]:not([hidden])'); });
 }
 
-const VIEWS = { fiche: viewFiche, sante: viewSante, sac: viewSac, prog: viewProg, carnet: viewCarnet, biblio: viewBiblio };
+// ---------- Magie : sorts et prières (lanceurs de sorts et prêtres seulement) ----------
+const isPrayer = (sp) => /benediction|miracle|priere|divin|\bculte\b/.test(R.norm(`${sp.lore || ''} ${sp.name || ''}`));
+
+function viewMagie(c) {
+  const ms = R.magicSkills(c);
+  const focus = +c.magicFocus || 0;
+  const priest = !!ms.pray || c.talents.some((t) => /\bbeni\b|invoquer|bless|invoke/.test(R.norm(t.name)));
+  const stat = (label, val, act, extra = '') => `<div class="stat ${act ? 'roll' : ''}" ${act || ''}><div class="sk">${label}</div><div class="sv">${val}</div>${extra}</div>`;
+  const skillStat = (label, sk) => sk
+    ? stat(label, R.skillValue(c, sk), `data-act="rollSkill" data-id="${sk.id}" role="button"`)
+    : stat(label, '—', '', '<div class="def-bonus">à ajouter</div>');
+  const spells = c.spells.map((sp, i) => {
+    const prayer = isPrayer(sp);
+    const cn = +sp.cn || 0;
+    const left = Math.max(0, cn - focus);
+    return `<div class="spell-card ${prayer ? 'prayer' : ''}">
+      <div class="spell-head">
+        <span class="badge" title="NI">${esc(sp.cn !== '' && sp.cn != null ? sp.cn : '–')}</span>
+        <div class="spell-name" data-act="editSpell" data-i="${i}" role="button"><b>${esc(sp.name)}</b>${sp.lore ? `<div class="small muted">${esc(sp.lore)}</div>` : ''}</div>
+        <button class="btn small ${prayer ? 'gold' : ''}" data-act="castSpell" data-i="${i}">${icon(prayer ? 'star' : 'wand')} ${prayer ? 'Prier' : 'Lancer'}</button>
+      </div>
+      <div class="spell-meta">${spellMeta(c, sp).map(esc).join(' · ')}${!prayer && cn ? ` · <b>${focus ? `NI restant ${left}` : `NI ${cn}`}</b>` : ''}</div>
+      ${sp.effect ? `<div class="spell-eff">${esc(sp.effect)}</div>` : ''}
+    </div>`;
+  }).join('') || '<div class="empty">Aucun sort ni prière. Ajoute-les depuis la bibliothèque ou à la main.</div>';
+
+  return `<div class="grid two">
+    <div class="stack">
+      <section class="card">
+        <h2>Pouvoirs</h2>
+        <div class="stats-row">
+          ${skillStat('Langue (Magick)', ms.cast)}
+          ${skillStat('Focalisation', ms.channel)}
+          ${stat('FM / BFM', `${R.charValue(c, 'FM')}<small style="font-size:14px"> / ${R.charBonus(c, 'FM')}</small>`)}
+        </div>
+        ${priest ? `<div class="stats-row" style="margin-top:8px">
+          ${skillStat('Prière', ms.pray)}
+          <div class="stat"><div class="sk">Péché</div><div class="sv">${stepper('sin', c.sin)}</div></div>
+          ${stat('Corruption', `${+c.corruption || 0}<small style="font-size:14px"> / ${R.corruptionMax(c)}</small>`)}
+        </div>` : ''}
+        <p class="small muted" style="margin:10px 0 0">Touche une compétence pour faire un test. Il en manque une ? Ajoute-la dans l'onglet Fiche (compétence groupée ou avancée).</p>
+      </section>
+      <section class="card">
+        <h2>Focalisation</h2>
+        <div class="row between">
+          <button class="btn" style="width:52px;font-size:22px" data-act="focusStep" data-d="-1">−</button>
+          <div style="text-align:center"><div class="adv-val">${focus}</div><div class="small muted">DR accumulés</div></div>
+          <button class="btn green" style="width:52px;font-size:22px" data-act="focusStep" data-d="1">+</button>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn gold" style="flex:1" data-act="channel" ${ms.channel ? '' : 'disabled'}>${icon('die')} Focaliser</button>
+          <button class="btn ghost" style="flex:1" data-act="focusStep" data-d="reset">Remettre à 0</button>
+        </div>
+        <p class="small muted" style="margin:8px 0 0">Chaque DR accumulé réduit d'autant le NI du prochain sort. Le compteur repart à 0 quand le sort est lancé.</p>
+      </section>
+    </div>
+    <section class="card">
+      <h2>Sorts et prières</h2>
+      ${spells}
+      <div class="add-row"><button class="btn ghost small" data-act="editSpell" data-i="-1">${icon('plus')} Sort / prière</button>${store.spells().length ? `<button class="btn ghost small" data-act="openSpellLib">${icon('library')} Parcourir la bibliothèque</button>` : ''}</div>
+    </section>
+  </div>`;
+}
+
+const VIEWS = { fiche: viewFiche, sante: viewSante, sac: viewSac, prog: viewProg, carnet: viewCarnet, magie: viewMagie, biblio: viewBiblio };
 
 // ================= Actions =================
 const A = {
@@ -973,6 +1043,31 @@ const A = {
       kind: 'talent', desc: [info?.desc || t.desc || 'Pas de description dans la bibliothèque.', info?.tests && info.tests !== '-' ? `Tests : ${info.tests}` : ''].filter(Boolean).join(' — '),
     });
   },
+  focusStep(el) {
+    const c = C();
+    c.magicFocus = el.dataset.d === 'reset' ? 0 : Math.max(0, (+c.magicFocus || 0) + +el.dataset.d);
+    commit();
+  },
+  channel() {
+    const c = C(); const sk = R.magicSkills(c).channel;
+    if (!sk) { toast('Ajoute la compétence Focalisation dans la Fiche'); return; }
+    openRoll({ title: 'Focalisation', label: R.skillLabel(sk), base: R.skillValue(c, sk), channel: true });
+  },
+  castSpell(el) {
+    const c = C(); const sp = c.spells[+el.dataset.i];
+    if (!sp) return;
+    const prayer = isPrayer(sp);
+    const ms = R.magicSkills(c);
+    const sk = prayer ? ms.pray : ms.cast;
+    const key = prayer ? 'Soc' : 'Int';
+    openRoll({
+      title: `${prayer ? 'Prière' : 'Sort'} : ${sp.name}`,
+      label: sk ? R.skillLabel(sk) : `${key} (sans ${prayer ? 'Prière' : 'Langue (Magick)'})`,
+      base: sk ? R.skillValue(c, sk) : R.charValue(c, key),
+      spell: { ...sp, prayer, cn: +sp.cn || 0 },
+    });
+  },
+  openSpellLib() { ui.libTab = 'spells'; ui.libSearch = ''; A.tab({ dataset: { tab: 'biblio' } }); },
   qInfo(el) {
     const list = el.dataset.l === 'a' ? R.ARMOUR_QUALITIES : R.WEAPON_QUALITIES;
     const q = list.find((x) => x.name === el.dataset.q);
@@ -1725,7 +1820,7 @@ function purifyEffect(c) {
 }
 
 // ---------- Lanceur de dés ----------
-function openRoll({ title, label, base, combat = false, weapon = null, parryWeapon = null }) {
+function openRoll({ title, label, base, combat = false, weapon = null, parryWeapon = null, spell = null, channel = false }) {
   const c = C();
   const adv = +c.health.advantage || 0;
   let last = null;
@@ -1778,6 +1873,25 @@ function openRoll({ title, label, base, combat = false, weapon = null, parryWeap
         } else if (weapon && r.fumble) {
           extra += '<div class="roll-line">Fais un jet sur la table des <b>maladresses</b>.</div>';
         }
+        // Sort : NI à atteindre (réduit par la focalisation) ; prière : réussite simple ; focalisation : DR ajoutés au compteur
+        if (spell && !spell.prayer) {
+          const focus = +c.magicFocus || 0;
+          const need = Math.max(0, spell.cn - focus);
+          const cast = r.success && r.sl >= need;
+          extra += `<div class="roll-line spell-out ${cast ? 'ok' : 'ko'}">${cast ? '✨ <b>Le sort est lancé !</b>' : '<b>Le sort ne part pas.</b>'} <span class="muted">(NI ${spell.cn}${focus ? ` − ${focus} focalisés = ${need}` : ''}, DR ${r.sl})</span></div>`;
+          if (cast && focus) { c.magicFocus = 0; commit(false); extra += '<div class="roll-line small muted">Focalisation remise à 0.</div>'; }
+        }
+        if (spell && spell.prayer) {
+          extra += `<div class="roll-line spell-out ${r.success ? 'ok' : 'ko'}">${r.success ? '🙏 <b>La prière est entendue.</b>' : '<b>La prière reste sans réponse.</b>'} <span class="muted">(DR ${r.sl})</span></div>`;
+        }
+        if (channel) {
+          if (r.success) {
+            const add = Math.max(1, r.sl);
+            c.magicFocus = (+c.magicFocus || 0) + add; commit(false);
+            extra += `<div class="roll-line spell-out ok">+${add} DR focalisés : total <b>${c.magicFocus}</b>.</div>`;
+          } else extra += '<div class="roll-line spell-out ko">La focalisation échoue.</div>';
+        }
+        if ((spell || channel) && r.roll < 100 && r.roll % 11 === 0) extra += '<div class="roll-line"><b>Double !</b> Risque d’incident (ou de colère divine pour une prière) : voir le livre.</div>';
         // Rappels des autres atouts / défauts de l'arme
         const remind = weapon || parryWeapon;
         if (remind) {

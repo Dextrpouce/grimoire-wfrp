@@ -545,3 +545,15 @@ label.chip:has(input:checked) { background: var(--blood); color: #fbe9d3; border
 .tal-general { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
 .tal-general .flabel { margin: 0; }
 .q-pop.talent { border-color: var(--gold-hi); }
+
+/* ---------- Onglet Magie ---------- */
+.spell-card { padding: 10px 12px; margin-bottom: 8px; border-radius: 12px; background: rgba(255, 255, 255, .32); border: 1px solid var(--line); }
+.spell-card.prayer { border-color: rgba(201, 154, 62, .7); background: linear-gradient(rgba(235, 198, 117, .18), rgba(255, 255, 255, .28)); }
+.spell-head { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; }
+.spell-name { min-width: 0; cursor: pointer; }
+.spell-name b { font-size: 17px; }
+.spell-meta { margin-top: 6px; font-size: 14px; color: var(--ink-soft); }
+.spell-eff { margin-top: 4px; font-size: 14.5px; line-height: 1.35; }
+.spell-out.ok { color: var(--green); }
+.spell-out.ko { color: var(--blood); }
+.stat .sv .step { font-size: 16px; }

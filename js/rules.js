@@ -240,6 +240,25 @@ export function weaponDamage(c, w) {
   return null;
 }
 
+// Lanceur de sorts : réglage du Carnet (« on » / « off »), sinon détection automatique
+const MAGIC_TALENTS = /magie|\bbeni\b|invoquer|sorcier|sorciere|petty magic|arcane magic|bless|invoke/;
+export function isCaster(c) {
+  if (c.magicTab === 'on') return true;
+  if (c.magicTab === 'off') return false;
+  if ((c.spells || []).length) return true;
+  if ((c.talents || []).some((t) => +t.times > 0 && MAGIC_TALENTS.test(norm(t.name)))) return true;
+  return (c.skills || []).some((s) => +s.advances > 0 && (/^(focalisation|priere)$/.test(norm(s.name)) || (norm(s.name) === 'langue' && /magick|magie/.test(norm(s.spec)))));
+}
+// Compétences de magie du personnage (null si absente)
+export function magicSkills(c) {
+  const find = (fn) => (c.skills || []).find(fn) || null;
+  return {
+    cast: find((s) => norm(s.name) === 'langue' && /magick|magie/.test(norm(s.spec))),
+    channel: find((s) => norm(s.name) === 'focalisation'),
+    pray: find((s) => norm(s.name) === 'priere'),
+  };
+}
+
 // Corruption : au-delà de BE + BFM, test de mutation
 export const corruptionMax = (c) => charBonus(c, 'E') + charBonus(c, 'FM');
 
