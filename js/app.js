@@ -272,7 +272,7 @@ function viewSante(c) {
     const ws = R.weaponSkill(c, w);
     const d = R.weaponDamage(c, w);
     const bonus = [];
-    if (R.hasQuality(w, 'acc10')) bonus.push(['+10', 'Minutieux']);
+    if (R.hasQuality(w, 'acc10')) bonus.push(['+10', 'Précise']);
     if (adv) bonus.push([`+${adv * 10}`, 'Avantage']);
     const eff = ws.value + (R.hasQuality(w, 'acc10') ? 10 : 0) + adv * 10;
     const dr = (R.hasQuality(w, 'hit+1') ? 1 : 0) - (R.hasQuality(w, 'hit-1') ? 1 : 0);
@@ -1878,7 +1878,7 @@ function openRoll({ title, label, base, combat = false, weapon = null, parryWeap
         ${F.num('mod', 'Autre modificateur', 0)}
       </div>
       ${combat && adv ? `<label class="row small" style="margin:0 0 8px"><input type="checkbox" name="useAdv" checked style="width:auto"> Avantage : +${adv * 10}</label>` : ''}
-      ${weapon && R.hasQuality(weapon, 'acc10') ? `<label class="row small" style="margin:0 0 8px"><input type="checkbox" name="useAcc" checked style="width:auto"> ⚙ Minutieux : +10</label>` : ''}
+      ${weapon && R.hasQuality(weapon, 'acc10') ? `<label class="row small" style="margin:0 0 8px"><input type="checkbox" name="useAcc" checked style="width:auto"> ⚙ Précise : +10</label>` : ''}
       <div class="roll-target">Cible : <b id="rTarget"></b></div>
       <div class="row" style="margin:10px 0">
         <button type="button" class="btn gold" id="rRandom" style="flex:1">${icon('die')} Lancer les dés</button>
@@ -1900,7 +1900,7 @@ function openRoll({ title, label, base, combat = false, weapon = null, parryWeap
         const notes = [];
         // Atouts / défauts appliqués automatiquement
         if (weapon && r.success) {
-          if (R.hasQuality(weapon, 'hit+1')) { r.sl += 1; notes.push('Précise : +1 DR'); }
+          if (R.hasQuality(weapon, 'hit+1')) { r.sl += 1; notes.push('Pointue : +1 DR'); }
           if (R.hasQuality(weapon, 'hit-1')) { r.sl = Math.max(0, r.sl - 1); notes.push('Imprécise : −1 DR'); }
           if (R.hasQuality(weapon, 'crit10') && units === 0 && !r.critical) { r.critical = true; notes.push('Empalé : critique sur un 0'); }
         }

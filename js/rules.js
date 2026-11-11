@@ -308,8 +308,9 @@ export function weaponSkill(c, w) {
 // les autres sont rappelés dans le résultat. Résumés courts : voir le livre pour le détail.
 export const WEAPON_QUALITIES = [
   // Atouts
-  { name: 'Précise', kind: 'atout', auto: 'hit+1', desc: '+1 DR quand tu touches.' },
-  { name: 'Minutieux', kind: 'atout', auto: 'acc10', desc: "+10 au test d'attaque avec cette arme." },
+  // Version VF utilisée : « Précise » = +10 (appelée « Minutieux » dans l'autre traduction)
+  { name: 'Précise', kind: 'atout', auto: 'acc10', aliases: ['Minutieux', 'Minutieuse', 'Accurate'], desc: "+10 au test d'attaque avec cette arme." },
+  { name: 'Pointue', kind: 'atout', auto: 'hit+1', aliases: ['Precise'], desc: '+1 DR quand tu touches.' },
   { name: 'Endommageant', kind: 'atout', auto: 'dmgBest', aliases: ['Dévastatrice', 'Endommageante'], desc: 'Dégâts : le plus élevé entre les DR et les unités du jet.' },
   { name: 'Impact', kind: 'atout', auto: 'dmgUnits', aliases: ['Percutante'], desc: 'Ajoute les unités du jet aux dégâts.' },
   { name: 'Empalé', kind: 'atout', auto: 'crit10', aliases: ['Empaleuse'], desc: 'Coup critique aussi sur un jet qui finit par 0.' },
