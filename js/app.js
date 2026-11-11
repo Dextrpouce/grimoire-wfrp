@@ -357,16 +357,6 @@ function viewSac(c) {
   return `<div class="grid two">
     <div class="stack">
       <section class="card">
-        <h2>Richesses</h2>
-        <div class="money">
-          <div class="coin co"><div class="disc">CO</div>${bind('money.co', c.money.co, 'number')}<div class="small muted">Couronnes d'or</div></div>
-          <div class="coin pa"><div class="disc">PA</div>${bind('money.pa', c.money.pa, 'number')}<div class="small muted">Pistoles d'argent</div></div>
-          <div class="coin sc"><div class="disc">SC</div>${bind('money.sc', c.money.sc, 'number')}<div class="small muted">Sous de cuivre</div></div>
-        </div>
-        <div class="row" style="margin-top:12px"><button class="btn" style="flex:1" data-act="pay" data-mode="pay">Payer</button><button class="btn green" style="flex:1" data-act="pay" data-mode="gain">Recevoir</button></div>
-        <p class="small muted" style="margin:8px 0 0">1 CO = 20 PA = 240 SC. La monnaie est rendue automatiquement.</p>
-      </section>
-      <section class="card">
         <h2>Encombrement</h2>
         <div class="row between"><b style="font-family:var(--font-title);font-size:22px">${enc.total} / ${enc.max}</b><span class="small muted">Max = BF + BE${c.encExtra ? ` + ${c.encExtra}` : ''}</span></div>
         <div class="bar enc ${ratio > 1 ? 'over' : ratio > .8 ? 'warn' : ''}"><i style="width:${Math.min(100, ratio * 100)}%"></i></div>
@@ -381,11 +371,21 @@ function viewSac(c) {
         <h2>Armes</h2>${weapons}
         <div class="add-row"><button class="btn ghost small" data-act="editWeapon" data-i="-1">${icon('plus')} Arme</button></div>
       </section>
-    </div>
-    <div class="stack">
       <section class="card">
         <h2>Armure</h2>${armour}
         <div class="add-row"><button class="btn ghost small" data-act="editArmour" data-i="-1">${icon('plus')} Pièce d'armure</button></div>
+      </section>
+    </div>
+    <div class="stack">
+      <section class="card">
+        <h2>Richesses</h2>
+        <div class="money">
+          <div class="coin co"><div class="disc">CO</div>${bind('money.co', c.money.co, 'number')}<div class="small muted">Couronnes d'or</div></div>
+          <div class="coin pa"><div class="disc">PA</div>${bind('money.pa', c.money.pa, 'number')}<div class="small muted">Pistoles d'argent</div></div>
+          <div class="coin sc"><div class="disc">SC</div>${bind('money.sc', c.money.sc, 'number')}<div class="small muted">Sous de cuivre</div></div>
+        </div>
+        <div class="row" style="margin-top:12px"><button class="btn" style="flex:1" data-act="pay" data-mode="pay">Payer</button><button class="btn green" style="flex:1" data-act="pay" data-mode="gain">Recevoir</button></div>
+        <p class="small muted" style="margin:8px 0 0">1 CO = 20 PA = 240 SC. La monnaie est rendue automatiquement.</p>
       </section>
       <section class="card">
         <h2>Possessions</h2>${items}
