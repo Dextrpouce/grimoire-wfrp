@@ -290,6 +290,19 @@ async function syncLib(kind) {
     for (const [id, t] of Object.entries(lib[items])) {
       if (t.authorUid && !t.dirty && !remote[id]) delete lib[items][id];
     }
+    // Fusionne les doublons d'un même auteur (même nom) : garde la version la plus récente
+    const groups = {};
+    for (const t of Object.values(lib[items])) {
+      if (t.authorUid && t.authorUid === store.userUid) (groups[normName(t.name)] ||= []).push(t);
+    }
+    for (const g of Object.values(groups)) {
+      if (g.length < 2) continue;
+      g.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+      for (const t of g.slice(1)) {
+        delete lib[items][t.id];
+        await cloud.deleteLib(kind, t.id);
+      }
+    }
     persistLib();
   } catch (e) {
     console.warn(`Bibliothèque « ${kind} » non synchronisée :`, e.message);
