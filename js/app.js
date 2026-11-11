@@ -52,7 +52,7 @@ const ui = {
 };
 
 const TABS = [
-  ['fiche', 'Fiche', 'sheet'], ['sante', 'Santé', 'heart'], ['sac', 'Sac', 'bag'],
+  ['fiche', 'Fiche', 'sheet'], ['sante', 'Santé', 'heart'], ['sac', 'Équipement', 'bag'],
   ['prog', 'Progrès', 'up'], ['carnet', 'Carnet', 'book'],
 ];
 
