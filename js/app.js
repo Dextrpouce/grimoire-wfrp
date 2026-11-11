@@ -1130,10 +1130,41 @@ const A = {
   newCharacter() {
     openDialog({
       title: 'Nouveau personnage',
-      body: `${F.text('name', 'Nom', '', '', 'autofocus required')}${F.select('species', 'Race', 'Humain', Object.keys(R.SPECIES))}<p class="small muted">Saisis ensuite tes caractéristiques initiales (onglet Fiche) et ta carrière (onglet Progression).</p>`,
+      body: `${F.text('name', 'Nom', '', '', 'autofocus required')}${F.select('species', 'Race', 'Humain', Object.keys(R.SPECIES))}
+        <div class="field"><label>Carrière</label>${careerSelect('', 'newCareer')}
+          <input name="newCareerOther" placeholder="Nom de la carrière" autocomplete="off" hidden style="margin-top:6px"></div>
+        <div class="field" id="newClassRow" hidden><label>Classe</label><div class="cls-auto" id="newClassAuto"></div>
+          <div id="newClassManual" hidden>${classPicker('')}</div></div>
+        <div id="newCareerHint"></div>
+        <p class="small muted">Saisis ensuite tes caractéristiques initiales (onglet Fiche).</p>`,
+      onOpen: (f) => {
+        const upd = () => {
+          const v = f.newCareer.value;
+          const other = v === '__other';
+          f.newCareerOther.hidden = !other;
+          f.querySelector('#newClassRow').hidden = !v;
+          f.querySelector('#newClassAuto').hidden = other;
+          f.querySelector('#newClassManual').hidden = !other;
+          if (!other) {
+            f.className.value = classForCareer(v);
+            f.querySelector('#newClassAuto').innerHTML = `${esc(f.className.value || '—')} <span class="small muted">(déduite de la carrière)</span>`;
+          } else { f.className.value = ''; syncClassPick(f); f.newCareerOther.focus(); }
+          const tpl = !other && v && store.findCareer(v);
+          f.querySelector('#newCareerHint').innerHTML = tpl ? `<div class="cost-line">📚 Le schéma de « ${esc(tpl.name)} » sera chargé depuis la bibliothèque.</div>` : '';
+        };
+        f.newCareer.addEventListener('change', upd);
+      },
       actions: [cancel, { label: 'Créer', primary: true, onClick: (f) => {
         const c = R.newCharacter(f.name.value.trim() || 'Nouveau personnage', f.species.value);
+        const career = f.newCareer.value === '__other' ? f.newCareerOther.value.trim() : f.newCareer.value;
+        if (career) {
+          c.career.name = career;
+          c.className = f.className.value.trim() || classForCareer(career);
+          const tpl = store.findCareer(career);
+          if (tpl) applyTemplate(c, tpl);
+        }
         store.add(c); ui.tab = 'fiche'; render();
+        toast(career ? `${c.name}, ${career}${c.className ? ` (${c.className})` : ''}` : `${c.name} créé`);
       } }],
     });
   },
