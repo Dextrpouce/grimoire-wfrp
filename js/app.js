@@ -342,7 +342,7 @@ function viewSante(c) {
         <p class="small muted" style="margin:8px 0 0">+10 par point d'Avantage aux tests de combat (ajouté automatiquement aux jets).</p>
       </section>
       <section class="card">
-        <h2>Destin & Résilience <button class="icon-btn h-act" data-act="editFate" aria-label="Modifier">${icon('edit')}</button></h2>
+        <h2>Destin & Résilience</h2>
         <div class="fate-grid">
           <div class="fate-box"><div class="fk">Destin</div><div class="pips">${pips(+f.fate || 0, +f.fate || 0, 'noop')}</div></div>
           <div class="fate-box"><div class="fk">Chance${R.luckBonus(c) ? ' <span class="tal" title="Talent Chance">★</span>' : ''}</div><div class="pips">${pips(R.maxFortune(c), +f.fortune || 0, 'fortune')}</div></div>
@@ -597,6 +597,16 @@ function viewCarnet(c) {
           <div class="field"><label>Cheveux</label>${bind('hair', c.hair)}</div>
           <div class="field"><label>Yeux</label>${bind('eyes', c.eyes)}</div>
         </div>
+      </section>
+      <section class="card">
+        <h2>Destin & Résilience</h2>
+        <div class="fields">
+          <div class="field"><label>Destin</label>${bind('fate.fate', c.fate.fate, 'number', `min="0" data-full="${(+c.fate.fortune || 0) >= R.maxFortune(c) ? 1 : 0}"`)}</div>
+          <div class="field"><label>Résilience</label>${bind('fate.resilience', c.fate.resilience, 'number', `min="0" data-full="${(+c.fate.resolve || 0) >= R.maxResolve(c) ? 1 : 0}"`)}</div>
+          <div class="field full"><label>Motivation</label>${bind('fate.motivation', c.fate.motivation, 'text', 'placeholder="ex. Venger ma famille"')}</div>
+        </div>
+        <p class="small muted" style="margin:0">Maximum de Chance : <b>${R.maxFortune(c)}</b>${R.luckBonus(c) ? ' (talent Chance compris)' : ''} · Maximum de Détermination : <b>${R.maxResolve(c)}</b>${R.strongMindBonus(c) ? " (talent Fort d'Esprit compris)" : ''}.
+          Les points se dépensent dans l'onglet <b>Combat</b> ; « Nouvelle séance » y remet la Chance au maximum.</p>
       </section>
       <section class="card">
         <h2>Ambitions</h2>
@@ -1817,7 +1827,13 @@ $app.addEventListener('change', (e) => {
     return;
   }
   if (!el.dataset.bind) return;
-  setPath(C(), el.dataset.bind, el.hasAttribute('data-num') ? num(el.value) : el.value);
+  const c = C();
+  setPath(c, el.dataset.bind, el.hasAttribute('data-num') ? num(el.value) : el.value);
+  // Destin / Résilience changés dans le Carnet : la Chance et la Détermination actuelles suivent
+  if (el.dataset.bind === 'fate.fate' || el.dataset.bind === 'fate.resilience') {
+    const [cur, max] = el.dataset.bind === 'fate.fate' ? ['fortune', R.maxFortune(c)] : ['resolve', R.maxResolve(c)];
+    c.fate[cur] = el.dataset.full === '1' ? max : Math.min(+c.fate[cur] || 0, max);
+  }
   commit(el.hasAttribute('data-rerender') || el.hasAttribute('data-num'));
 });
 $app.addEventListener('submit', (e) => {
