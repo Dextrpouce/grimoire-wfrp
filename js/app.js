@@ -247,9 +247,8 @@ function viewFiche(c) {
 }
 
 // ---------- Combat (ancien onglet Santé) ----------
-const FIGURE = `<svg class="fig" viewBox="0 0 110 200" aria-hidden="true"><g fill="rgba(60,40,22,.18)" stroke="rgba(60,40,22,.45)" stroke-width="1.5">
-  <circle cx="55" cy="22" r="15"/><path d="M33 42h44l6 60H27z"/><path d="M33 44 16 98l9 3 14-42z"/><path d="M77 44l17 54-9 3-14-42z"/>
-  <path d="M30 104h24l-3 88H37z"/><path d="M56 104h24l-7 88H59z"/></g></svg>`;
+// Gravure de Viollet-le-Duc (1874, domaine public), passée en encre sépia
+const FIGURE = '<img class="fig" src="img/armure.webp" alt="" loading="lazy">';
 
 function viewSante(c) {
   const wb = R.woundsBreakdown(c);

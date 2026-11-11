@@ -128,3 +128,7 @@ python -m http.server 8765
 ```
 
 Puis ouvre <http://localhost:8765>. `localhost` est autorisé par défaut dans Firebase.
+
+## Crédits
+
+- Silhouette des points d'armure : gravure d'Eugène Viollet-le-Duc (*Dictionnaire raisonné du mobilier français*, 1874, domaine public), via [Old Book Illustrations](https://www.oldbookillustrations.com/illustrations/franc-archer/), passée en sépia.
