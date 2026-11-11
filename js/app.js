@@ -266,6 +266,7 @@ function viewSante(c) {
 
   // Attaques : chaque arme + les mains nues
   const weapons = [...c.weapons.map((w, i) => ({ w, i })), { w: { name: 'Mains nues', group: 'Bagarre', reach: 'Personnelle', damage: 'BF+0', qualities: 'Inoffensive' }, i: -1 }];
+  const tg = combatTalentGroups(c);
   const attacks = weapons.map(({ w, i }) => {
     const ws = R.weaponSkill(c, w);
     const d = R.weaponDamage(c, w);
@@ -280,7 +281,7 @@ function viewSante(c) {
     return `<div class="attack" data-act="rollAttack" data-i="${i}" role="button">
       <div class="atk-main"><div class="li-title">${esc(w.name)}</div>
         <div class="li-sub">${esc(ws.label)}${w.reach ? ` · ${esc(w.reach)}` : ''}</div>
-        ${detail}${qualityTags(w)}</div>
+        ${detail}${qualityTags(w)}${talentTags(c, R.isRangedWeapon(w) ? tg.ranged : tg.melee)}</div>
       <div class="atk-num"><span class="atk-val ${ws.trained ? '' : 'untrained'} ${eff !== ws.value ? 'boosted' : ''}">${eff}</span><span class="atk-lbl">${ws.ranged ? 'Tir' : 'Attaque'}</span></div>
       <div class="atk-num"><span class="atk-val dmg">${d != null ? d : esc(w.damage || '–')}</span><span class="atk-lbl">Dégâts</span></div>
       <span class="atk-die">${icon('die')}</span>
@@ -305,12 +306,6 @@ function viewSante(c) {
     </div>`;
 
   // Talents utiles en combat (d'après la bibliothèque)
-  const combatTalents = c.talents.filter((t) => {
-    const info = store.findTalent(t.name);
-    const txt = R.norm(`${info?.tests || ''} ${info?.desc || ''}`);
-    return /melee|corps a corps|tir\b|projectile|esquive|initiative|combat|degat|attaque|charge|parade|bouclier|avantage|frenesie/.test(txt);
-  });
-
   return `<div class="combat-bar">
       <div class="cb-item"><span class="cb-k">Blessures</span>
         <span class="cb-ctrl"><button data-act="wound" data-d="-1">−</button><b class="${cur <= 0 ? 'danger' : ''}">${cur}<small>/${max}</small></b><button data-act="wound" data-d="1">+</button></span></div>
@@ -324,11 +319,13 @@ function viewSante(c) {
       <section class="card">
         <h2>Attaques</h2>
         ${attacks}
-        <p class="small muted" style="margin:8px 0 0">Touche une attaque pour lancer les dés. Gère tes armes dans l'onglet Sac.</p>
+        ${tg.general.length ? `<div class="tal-general"><span class="flabel">Général</span>${talentTags(c, tg.general)}</div>` : ''}
+        <p class="small muted" style="margin:8px 0 0">Touche une attaque pour lancer les dés. Touche une pastille ★ pour voir l'effet d'un talent. Gère tes armes dans l'onglet Sac.</p>
       </section>
       <section class="card">
         <h2>Défense</h2>
         ${defense}
+        ${tg.defense.length ? `<div class="tal-general">${talentTags(c, tg.defense)}</div>` : ''}
         <div class="add-row"><button class="btn ghost small" data-act="rollFree">${icon('die')} Autre test</button></div>
       </section>
     </div>
@@ -379,13 +376,6 @@ function viewSante(c) {
         <p class="small muted" style="margin:10px 0 0">Calculés depuis les armures portées (onglet Sac). Le bouclier vient de l'arme qui a l'atout <b>Bouclier</b>.</p>
       </section>
       <section class="card">
-        <h2>Talents de combat</h2>
-        ${combatTalents.map((t) => {
-          const info = store.findTalent(t.name);
-          return `<div class="list-item" data-act="editTalent" data-i="${c.talents.indexOf(t)}" role="button"><span class="badge soft">${t.times}</span><span class="li-main"><div class="li-title">${esc(t.name)}</div><div class="li-sub">${esc(info?.desc || t.desc || '')}</div></span></div>`;
-        }).join('') || '<div class="empty">Aucun talent de combat repéré.</div>'}
-      </section>
-      <section class="card">
         <h2>Destin & Résilience</h2>
         <div class="fate-grid">
           <div class="fate-box"><div class="fk">Destin</div><div class="pips">${pips(+f.fate || 0, +f.fate || 0, 'noop')}</div></div>
@@ -427,6 +417,33 @@ function wireQualityHelp(f, list) {
     box.className = `q-help ${q.kind === 'atout' ? 'pro' : 'con'}`;
     box.innerHTML = `<b>${esc(q.name)}</b>${q.auto ? ' ⚙' : ''} : ${esc(q.desc)}`;
   }));
+}
+
+// Talents de combat du personnage, rangés selon ce qu'ils concernent (d'après la bibliothèque)
+function combatTalentGroups(c) {
+  const g = { ranged: [], melee: [], defense: [], general: [] };
+  c.talents.forEach((t, i) => {
+    if (!(+t.times > 0)) return;
+    const info = store.findTalent(t.name);
+    // Les « tests associés » priment ; la description ne sert que s'ils sont vides
+    const tests = R.norm(info?.tests || '').replace(/^-$/, '');
+    const txt = tests || R.norm(info?.desc || t.desc || '');
+    const all = R.norm(`${info?.tests || ''} ${info?.desc || t.desc || ''}`);
+    let hit = false;
+    if (/\btir\b|projectile|a distance|\barc\b|arbalet|poudre noire|recharg/.test(txt)) { g.ranged.push(i); hit = true; }
+    if (/melee|corps a corps|escrime|bagarre|\bcharge\b|\bchargez\b/.test(txt)) { g.melee.push(i); hit = true; }
+    if (/esquive|parade|defense|bouclier|initiative|\bsurprise?\b/.test(txt)) { g.defense.push(i); hit = true; }
+    if (!hit && /combat|degat|attaque|avantage|frenesie|critique/.test(all)) g.general.push(i);
+  });
+  return g;
+}
+
+function talentTags(c, idx) {
+  if (!idx.length) return '';
+  return `<div class="tal-tags">${idx.map((i) => {
+    const t = c.talents[i];
+    return `<span class="tal-tag" data-act="talInfo" data-i="${i}" role="button">★ ${esc(t.name)}${+t.times > 1 ? ` ${t.times}` : ''}</span>`;
+  }).join('')}</div>`;
 }
 
 // Pastilles vertes (atouts) et rouges (défauts) d'une arme
@@ -944,6 +961,16 @@ const A = {
         const [t, v] = f.what.value.split(':');
         setTimeout(() => (t === 'c' ? A.rollChar({ dataset: { k: v } }) : A.rollSkill({ dataset: { id: v } })), 50);
       } }],
+    });
+  },
+  talInfo(el) {
+    const c = C(); const t = c.talents[+el.dataset.i];
+    if (!t) return;
+    const info = store.findTalent(t.name);
+    const max = R.talentMax(c, info?.max);
+    showQualityPopover(el, {
+      name: `${t.name}${+t.times > 1 || max != null ? ` (niveau ${t.times}${max != null ? `/${max}` : ''})` : ''}`,
+      kind: 'talent', desc: [info?.desc || t.desc || 'Pas de description dans la bibliothèque.', info?.tests && info.tests !== '-' ? `Tests : ${info.tests}` : ''].filter(Boolean).join(' — '),
     });
   },
   qInfo(el) {

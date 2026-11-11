@@ -537,3 +537,11 @@ label.chip:has(input:checked) { background: var(--blood); color: #fbe9d3; border
 .atk-bonus b.con { color: var(--blood); }
 .def-bonus { font-size: 11.5px; color: var(--ink-soft); line-height: 1.2; }
 .def-bonus b { color: var(--green); }
+
+/* Talents de combat affichés sur les cartes d'arme et dans la Défense */
+.tal-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.tal-tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer;
+  background: rgba(201, 154, 62, .22); color: #6b4c17; border: 1px solid rgba(201, 154, 62, .7); }
+.tal-general { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.tal-general .flabel { margin: 0; }
+.q-pop.talent { border-color: var(--gold-hi); }
