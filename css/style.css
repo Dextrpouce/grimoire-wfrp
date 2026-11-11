@@ -452,3 +452,10 @@ label.chip:has(input:checked) { background: var(--blood); color: #fbe9d3; border
 @keyframes holyGlow { 0% { opacity: 1; } 35% { opacity: .85; } 100% { opacity: .35; } }
 .scare.holy .scare-text { background: rgba(35, 24, 6, .55); padding: 10px 14px; border-radius: 12px; backdrop-filter: blur(2px); }
 .scare.holy .scare-count { background: rgba(35, 24, 6, .45); padding: 4px 12px; border-radius: 999px; left: 50%; right: auto; transform: translateX(-50%); }
+
+/* Tablette en portrait (720–999 px) : 2 colonnes au lieu d'une seule */
+@media (min-width: 720px) and (max-width: 999px) {
+  .grid.three { grid-template-columns: 1fr 1fr; }
+  .grid.three.combat > .stack:nth-child(3) { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+  .grid.three.combat > .stack:nth-child(3) > section:first-child { grid-row: span 2; }
+}
