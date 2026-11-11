@@ -236,7 +236,7 @@ function viewFiche(c) {
       <div class="filters">
         ${[['all', 'Toutes'], ['acquired', 'Acquises'], ['career', 'Carrière ◆']].map(([k, l]) => `<button class="chip ${ui.skillFilter === k ? 'on' : ''}" data-act="skillFilter" data-f="${k}">${l}</button>`).join('')}
       </div>
-      <div class="skills ${ui.levelUp ? '' : 'wide'}">${skillRows}</div>
+      <div class="skills ${ui.levelUp ? '' : 'wide'}" style="--rows:${Math.max(1, Math.ceil(skills.length / 2))}">${skillRows}</div>
       <div class="add-row"><button class="btn ghost small" data-act="addSkill">${icon('plus')} Compétence groupée ou avancée</button></div>
     </section>
     <section class="card">
