@@ -136,6 +136,13 @@ export const store = {
     // Fichier de talents : { format: 'whfrp4-talents', talents: [...] }
     if (incoming.format === 'whfrp4-talents') {
       let n = 0;
+      // « replace » : retire d'abord tes propres talents absents du fichier (évite les doublons d'anciennes listes)
+      if (incoming.replace) {
+        const keep = new Set((incoming.talents || []).map((t) => normName(t.name)));
+        for (const t of this.talents()) {
+          if (this.canEditCareer(t) && !keep.has(normName(t.name))) this.removeTalent(t.id);
+        }
+      }
       for (const t of incoming.talents || []) {
         if (!t?.name) continue;
         const existing = this.findTalent(t.name);

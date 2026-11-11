@@ -114,16 +114,27 @@ export function talentTimes(c, name) {
   return t ? +t.times || 0 : 0;
 }
 
-const HARDY_NAMES = ['Dur à cuire', 'Hardy', 'Inflexible'];
+const HARDY_NAMES = ['Dur à cuire', 'Hardy', 'Inflexible', 'Robuste'];
 
-// Maximum d'un talent : « 2 », « Bonus de I », « Bonus de DXT »… (null = pas de limite connue)
-const MAX_KEYS = { CC: 'CC', CT: 'CT', F: 'F', E: 'E', I: 'I', AG: 'Ag', DEX: 'Dex', DXT: 'Dex', INT: 'Int', FM: 'FM', SOC: 'Soc' };
+// Maximum d'un talent : « 2 », « Bonus de I », « Bonus de Force Mentale », « Bonus Sociabilite »…
+// (null = pas de limite connue). L'ordre compte : « force mentale » avant « force ».
+const MAX_WORDS = [
+  [/force\s+mentale|\bfm\b|\bwp\b/, 'FM'], [/capacite\s+(de\s+)?combat|\bcc\b|\bws\b/, 'CC'],
+  [/capacite\s+(de\s+)?tir|\bct\b|\bbs\b/, 'CT'], [/sociabilite|\bsoc\b|\bfel\b/, 'Soc'],
+  [/intelligence|\bint\b/, 'Int'], [/dexterite|\bdex\b|\bdxt\b/, 'Dex'], [/agilite|\bag\b/, 'Ag'],
+  [/endurance|\be\b|\bt\b/, 'E'], [/initiative|instinct|\bi\b/, 'I'], [/force|\bf\b|\bs\b/, 'F'],
+];
+export function maxChar(spec) {
+  const s = norm(spec);
+  if (!s.startsWith('bonus')) return null;
+  const rest = s.replace(/^bonus\s*(de\s+|d'\s*|d\s+)?/, '');
+  return MAX_WORDS.find(([re]) => re.test(rest))?.[1] || null;
+}
 export function talentMax(c, spec) {
   const s = String(spec ?? '').trim();
   if (!s) return null;
   if (/^\d+$/.test(s)) return +s;
-  const m = s.match(/bonus\s+de\s+([A-Za-z]+)/i);
-  const k = m && MAX_KEYS[m[1].toUpperCase()];
+  const k = maxChar(s);
   return k ? Math.max(1, charBonus(c, k)) : null;
 }
 
