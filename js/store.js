@@ -113,6 +113,21 @@ export const store = {
   exportAll() { return JSON.stringify({ format: 'whfrp4', version: 1, ...data }, null, 2); },
   importAll(json) {
     const incoming = JSON.parse(json);
+    // Fichier de carrières : { format: 'whfrp4-careers', careers: [...] }
+    if (incoming.format === 'whfrp4-careers') {
+      let n = 0;
+      for (const t of incoming.careers || []) {
+        if (!t?.name || !Array.isArray(t.levels)) continue;
+        const existing = this.findCareer(t.name);
+        const levels = [0, 1, 2, 3].map((i) => {
+          const l = t.levels[i] || {};
+          return { title: l.title || '', status: l.status || '', chars: l.chars || [], skills: l.skills || [], talents: l.talents || [] };
+        });
+        this.saveCareer({ id: existing && this.canEditCareer(existing) ? existing.id : null, name: t.name, className: t.className || '', path: t.path || '', levels });
+        n++;
+      }
+      return { careers: n };
+    }
     const chars = incoming.characters ? Object.values(incoming.characters) : [incoming];
     let n = 0;
     for (const c of chars) {

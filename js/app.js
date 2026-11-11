@@ -982,7 +982,11 @@ const A = {
         const file = f.querySelector('#importFile');
         f.querySelector('[data-m=import]').onclick = () => file.click();
         file.onchange = async () => {
-          try { const n = store.importAll(await file.files[0].text()); dlg.close(); render(); toast(`${n} personnage(s) importé(s)`); } catch { toast('Fichier invalide'); }
+          try {
+            const n = store.importAll(await file.files[0].text());
+            dlg.close(); render();
+            toast(n?.careers != null ? `${n.careers} carrière(s) ajoutée(s) à la bibliothèque` : `${n} personnage(s) importé(s)`);
+          } catch { toast('Fichier invalide'); }
         };
         f.querySelector('[data-m=duplicate]').onclick = () => {
           const copy = JSON.parse(JSON.stringify(C())); copy.id = R.uid(); copy.name += ' (copie)'; copy.updatedAt = Date.now();

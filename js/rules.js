@@ -167,7 +167,8 @@ export function skillInCareer(c, s) {
   const base = norm(s.name);
   return levelsUpTo(c).some((l) => (l.skills || []).some((x) => {
     const n = norm(x);
-    return n === full || n === base || (n.startsWith(base + ' (') && /au choix|n.importe/.test(n));
+    // « Discrétion (Rurale) » dans la carrière compte pour la compétence de base « Discrétion »
+    return n === full || n === base || (n.startsWith(base + ' (') && (!s.spec || /au choix|n.importe/.test(n)));
   }));
 }
 
