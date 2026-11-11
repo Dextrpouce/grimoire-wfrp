@@ -1,5 +1,5 @@
 // Service worker : garde l'appli en cache pour qu'elle fonctionne sans internet.
-const VERSION = 'v26';
+const VERSION = 'v27';
 const CACHE = `grimoire-${VERSION}`;
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
@@ -31,7 +31,9 @@ self.addEventListener('fetch', (e) => {
     const sameOrigin = url.origin === location.origin;
     const cached = await cache.match(e.request, { ignoreSearch: sameOrigin });
     const fallback = cached || (e.request.mode === 'navigate' ? await cache.match('index.html') : undefined);
-    const network = fetch(e.request).then((res) => {
+    // Fichiers de l'appli : toujours revalider auprès du serveur (évite une vieille copie du cache HTTP)
+    const req = sameOrigin && e.request.mode !== 'navigate' ? new Request(e.request, { cache: 'no-cache' }) : e.request;
+    const network = fetch(req).then((res) => {
       if (res.ok || res.type === 'opaque') cache.put(e.request, res.clone());
       return res;
     });

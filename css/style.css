@@ -503,3 +503,14 @@ label.chip:has(input:checked) { background: var(--blood); color: #fbe9d3; border
 .q-tag.con { background: rgba(140, 28, 28, .12); color: var(--blood); border: 1px solid rgba(140, 28, 28, .4); }
 .q-auto { color: var(--green); font-weight: 600; }
 .q-remind { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 14px; }
+
+/* Barre fixe du Combat : plus compacte sur les petits téléphones */
+@media (max-width: 420px) {
+  .combat-bar { gap: 2px; padding: 8px 4px; }
+  .cb-ctrl { gap: 2px; }
+  .cb-ctrl button { width: 26px; height: 28px; font-size: 16px; }
+  .cb-ctrl b { min-width: 28px; font-size: 19px; }
+  .cb-ctrl b small { font-size: 10px; }
+}
+.combat-bar { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.cb-item { min-width: 0; }

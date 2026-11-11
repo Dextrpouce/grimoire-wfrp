@@ -307,8 +307,8 @@ function viewSante(c) {
         <span class="cb-ctrl"><button data-act="wound" data-d="-1">−</button><b class="${cur <= 0 ? 'danger' : ''}">${cur}<small>/${max}</small></b><button data-act="wound" data-d="1">+</button></span></div>
       <div class="cb-item"><span class="cb-k">Avantage</span>
         <span class="cb-ctrl"><button data-act="adv" data-d="-1">−</button><b>${adv}</b><button data-act="adv" data-d="1">+</button></span></div>
-      <div class="cb-item" data-act="fortuneSpend" role="button" title="Toucher pour dépenser 1 point de Chance"><span class="cb-k">Chance</span>
-        <span class="cb-ctrl"><b>${+f.fortune || 0}<small>/${R.maxFortune(c)}</small></b></span></div>
+      <div class="cb-item"><span class="cb-k">Chance</span>
+        <span class="cb-ctrl"><button data-act="fortuneStep" data-d="-1" aria-label="Dépenser 1 point de Chance">−</button><b>${+f.fortune || 0}<small>/${R.maxFortune(c)}</small></b><button data-act="fortuneStep" data-d="1" aria-label="Regagner 1 point de Chance">+</button></span></div>
     </div>
     <div class="grid three combat">
     <div class="stack">
@@ -902,6 +902,12 @@ const A = {
         setTimeout(() => (t === 'c' ? A.rollChar({ dataset: { k: v } }) : A.rollSkill({ dataset: { id: v } })), 50);
       } }],
     });
+  },
+  fortuneStep(el) {
+    const c = C(); const max = R.maxFortune(c);
+    const next = Math.max(0, Math.min(max, (+c.fate.fortune || 0) + +el.dataset.d));
+    if (next === (+c.fate.fortune || 0)) { toast(+el.dataset.d < 0 ? 'Plus de points de Chance' : `Chance déjà au maximum (${max})`); return; }
+    c.fate.fortune = next; commit();
   },
   fortuneSpend() {
     const c = C();
