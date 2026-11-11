@@ -271,6 +271,43 @@ export function weaponSkill(c, w) {
   return { ranged, skill: null, value: charValue(c, key), label: `${key} · sans ${ranged ? 'Projectiles' : 'Corps à corps'}${w.group ? ` (${w.group})` : ''}`, trained: false };
 }
 
+// Atouts et défauts d'armes courants. « auto » = effet appliqué par le lanceur de dés ;
+// les autres sont rappelés dans le résultat. Résumés courts : voir le livre pour le détail.
+export const WEAPON_QUALITIES = [
+  { name: 'Précise', kind: 'atout', auto: 'hit+1', desc: '+1 DR quand tu touches.' },
+  { name: 'Dévastatrice', kind: 'atout', auto: 'dmgBest', desc: 'Dégâts : le plus élevé entre les DR et les unités du jet.' },
+  { name: 'Percutante', kind: 'atout', auto: 'dmgUnits', desc: 'Ajoute les unités du jet aux dégâts.' },
+  { name: 'Empaleuse', kind: 'atout', auto: 'crit10', desc: 'Coup critique aussi sur un jet qui finit par 0.' },
+  { name: 'Défensive', kind: 'atout', auto: 'parry+1', desc: '+1 DR quand tu pares avec cette arme.' },
+  { name: 'Rapide', kind: 'atout', desc: 'Frappe vite : avantage pour agir en premier en mêlée.' },
+  { name: 'Perforante', kind: 'atout', desc: 'Traverse mieux les armures (PA réduits).' },
+  { name: 'Taillante', kind: 'atout', desc: "Abîme l'armure ou le bouclier touché." },
+  { name: 'Assommante', kind: 'atout', desc: 'Peut assommer la cible (test pour résister).' },
+  { name: 'Enchevêtrante', kind: 'atout', desc: 'Peut immobiliser la cible.' },
+  { name: 'Bouclier', kind: 'atout', rated: true, desc: 'Aide à parer, y compris les projectiles selon le niveau.' },
+  { name: 'Imprécise', kind: 'défaut', auto: 'hit-1', desc: '−1 DR quand tu touches.' },
+  { name: 'Lente', kind: 'défaut', desc: "L'adversaire se défend plus facilement (+1 DR pour lui)." },
+  { name: 'Inoffensive', kind: 'défaut', desc: "PA de la cible comptés deux fois ; peut n'infliger aucune Blessure." },
+  { name: 'Épuisante', kind: 'défaut', desc: "Fatigue vite : n'apporte son bonus qu'en début de combat." },
+  { name: 'Dangereuse', kind: 'défaut', desc: 'Risque de se blesser sur une maladresse.' },
+  { name: 'Peu fiable', kind: 'défaut', desc: 'Risque de panne ou de casse sur une maladresse.' },
+  { name: 'Recharge', kind: 'défaut', rated: true, desc: 'Doit être rechargée (le niveau indique la difficulté).' },
+];
+
+// Lit « Défensive, Recharge 2, Pointue » → { known: [{ q, rating }], other: ['Pointue'] }
+export function parseQualities(text) {
+  const known = [];
+  const other = [];
+  for (const raw of String(text || '').split(/[,;]/).map((x) => x.trim()).filter(Boolean)) {
+    const m = raw.match(/^(.*?)\s*(\d+)?$/);
+    const q = WEAPON_QUALITIES.find((x) => norm(x.name) === norm(m[1]));
+    if (q) known.push({ q, rating: m[2] ? +m[2] : null });
+    else other.push(raw);
+  }
+  return { known, other };
+}
+export const hasQuality = (w, auto) => parseQualities(w?.qualities).known.some((k) => k.q.auto === auto);
+
 // Résultat d'un test d100 : réussite, degrés de réussite (DR), critique sur un double
 export function rollResult(target, roll) {
   const r = Math.min(100, Math.max(1, Math.round(roll)));

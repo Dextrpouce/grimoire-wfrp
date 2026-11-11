@@ -490,3 +490,16 @@ label.chip:has(input:checked) { background: var(--blood); color: #fbe9d3; border
 .cond-add { display: flex; flex-wrap: wrap; gap: 6px; }
 .cond-chip { padding: 6px 12px; border-radius: 999px; border: 1px dashed rgba(60, 40, 22, .35); background: rgba(255, 255, 255, .3); color: var(--ink); font-size: 14px; }
 .cond-chip:active { background: rgba(140, 28, 28, .15); }
+
+/* ---------- Atouts / défauts d'armes ---------- */
+.q-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 4px; }
+.q-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; border: 1px dashed rgba(60, 40, 22, .35); background: rgba(255, 255, 255, .3); font-size: 14px; cursor: pointer; user-select: none; }
+.q-chip.pro:has(input[type=checkbox]:checked) { background: var(--green); color: #fff; border: 1px solid #234020; }
+.q-chip.con:has(input[type=checkbox]:checked) { background: var(--blood); color: #fbe9d3; border: 1px solid #5d1010; }
+.q-rate { width: 44px; padding: 2px 4px; font-size: 13px; border-radius: 6px; }
+.q-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.q-tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; background: rgba(60, 40, 22, .12); color: var(--ink); white-space: nowrap; }
+.q-tag.pro { background: rgba(62, 110, 58, .18); color: #2d5a2a; border: 1px solid rgba(62, 110, 58, .45); }
+.q-tag.con { background: rgba(140, 28, 28, .12); color: var(--blood); border: 1px solid rgba(140, 28, 28, .4); }
+.q-auto { color: var(--green); font-weight: 600; }
+.q-remind { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 14px; }

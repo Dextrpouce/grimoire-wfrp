@@ -272,7 +272,8 @@ function viewSante(c) {
     const d = R.weaponDamage(c, w);
     return `<div class="attack" data-act="rollAttack" data-i="${i}" role="button">
       <div class="atk-main"><div class="li-title">${esc(w.name)}</div>
-        <div class="li-sub">${esc(ws.label)}${w.reach ? ` · ${esc(w.reach)}` : ''}${w.qualities ? ` · ${esc(w.qualities)}` : ''}</div></div>
+        <div class="li-sub">${esc(ws.label)}${w.reach ? ` · ${esc(w.reach)}` : ''}</div>
+        ${qualityTags(w)}</div>
       <div class="atk-num"><span class="atk-val ${ws.trained ? '' : 'untrained'}">${ws.value}</span><span class="atk-lbl">${ws.ranged ? 'Tir' : 'Attaque'}</span></div>
       <div class="atk-num"><span class="atk-val dmg">${d != null ? d : esc(w.damage || '–')}</span><span class="atk-lbl">Dégâts</span></div>
       <span class="atk-die">${icon('die')}</span>
@@ -281,7 +282,7 @@ function viewSante(c) {
 
   // Défense et ordre d'action
   const dodge = c.skills.find((s) => R.norm(s.name) === 'esquive');
-  const melee = c.weapons.filter((w) => !R.isRangedWeapon(w)).map((w) => R.weaponSkill(c, w)).sort((a, b) => b.value - a.value)[0]
+  const melee = c.weapons.filter((w) => !R.isRangedWeapon(w)).sort((a, b) => R.weaponSkill(c, b).value - R.weaponSkill(c, a).value || R.hasQuality(b, 'parry+1') - R.hasQuality(a, 'parry+1')).map((w) => R.weaponSkill(c, w))[0]
     || R.weaponSkill(c, { group: 'Base', reach: 'Moyenne' });
   const defense = `<div class="stats-row def-row">
       <div class="stat roll" data-act="rollSkill" data-id="${dodge?.id || ''}" role="button"><div class="sk">Esquive</div><div class="sv">${dodge ? R.skillValue(c, dodge) : '–'}</div></div>
@@ -348,6 +349,10 @@ function viewSante(c) {
         ${c.health.criticals.map((cr, i) => `<div class="list-item"><span class="li-main"><div class="li-title">${esc(cr.name)}</div><div class="li-sub">${esc(cr.location)}${cr.desc ? ` — ${esc(cr.desc)}` : ''}</div></span><button class="icon-btn" style="color:var(--blood)" data-act="healCrit" data-i="${i}" aria-label="Guérie">${icon('check')}</button></div>`).join('') || '<div class="empty">Aucune, pour l\'instant…</div>'}
         <div class="add-row"><button class="btn ghost small" data-act="addCrit">${icon('plus')} Blessure critique</button></div>
       </section>
+      <section class="card">
+        <h2>Notes de combat</h2>
+        ${bind('combatNotes', c.combatNotes, 'area', 'placeholder="États en cours, effets, ennemi ciblé, rappel du MJ…" style="min-height:110px"')}
+      </section>
     </div>
     <div class="stack">
       <section class="card">
@@ -380,6 +385,13 @@ function viewSante(c) {
     </div>
   </div>
   <div class="combat-end"><button class="btn ghost" data-act="adv" data-d="reset">Fin du combat · Avantage à 0</button><span class="small muted">+10 par point d'Avantage aux tests de combat (ajouté automatiquement aux jets).</span></div>`;
+}
+
+// Pastilles vertes (atouts) et rouges (défauts) d'une arme
+function qualityTags(w) {
+  const { known, other } = R.parseQualities(w.qualities);
+  if (!known.length && !other.length) return '';
+  return `<div class="q-tags">${known.map(({ q, rating }) => `<span class="q-tag ${q.kind === 'atout' ? 'pro' : 'con'}" title="${esc(q.desc)}">${esc(q.name)}${rating ? ` ${rating}` : ''}</span>`).join('')}${other.map((o) => `<span class="q-tag">${esc(o)}</span>`).join('')}</div>`;
 }
 
 const stepper = (path, val) => `<span class="step"><button data-act="step" data-p="${path}" data-d="-1">−</button><span class="val">${+val || 0}</span><button data-act="step" data-p="${path}" data-d="1">+</button></span>`;
@@ -864,9 +876,10 @@ const A = {
   },
   rollParry() {
     const c = C();
-    const best = c.weapons.filter((w) => !R.isRangedWeapon(w)).map((w) => ({ w, s: R.weaponSkill(c, w) })).sort((a, b) => b.s.value - a.s.value)[0];
+    const best = c.weapons.filter((w) => !R.isRangedWeapon(w)).map((w) => ({ w, s: R.weaponSkill(c, w) }))
+      .sort((a, b) => b.s.value - a.s.value || R.hasQuality(b.w, 'parry+1') - R.hasQuality(a.w, 'parry+1'))[0];
     const s = best?.s || R.weaponSkill(c, { group: 'Base', reach: 'Moyenne' });
-    openRoll({ title: `Parade${best ? ` : ${best.w.name}` : ''}`, label: s.label, base: s.value, combat: true });
+    openRoll({ title: `Parade${best ? ` : ${best.w.name}` : ''}`, label: s.label, base: s.value, combat: true, parryWeapon: best?.w || null });
   },
   rollSkill(el) {
     const c = C(); const s = c.skills.find((x) => x.id === el.dataset.id);
@@ -1012,10 +1025,43 @@ const A = {
     });
   },
   editWeapon(el) {
-    editListItem('weapons', +el.dataset.i, 'Arme', [
-      ['name', 'Nom', 'text', 'full'], ['group', 'Groupe', 'text'], ['enc', 'Enc', 'num'], ['reach', 'Portée / Allonge', 'text'],
-      ['damage', 'Dégâts (ex. BF+4)', 'text'], ['qualities', 'Atouts / Défauts', 'text', 'full'],
-    ], { name: '', group: '', enc: 1, reach: 'Moyenne', damage: 'BF+4', qualities: '' });
+    const c = C(); const i = +el.dataset.i;
+    const w = c.weapons[i] || { name: '', group: '', enc: 1, reach: 'Moyenne', damage: 'BF+4', qualities: '' };
+    const parsed = R.parseQualities(w.qualities);
+    const chip = (q) => {
+      const cur = parsed.known.find((k) => k.q === q);
+      return `<label class="q-chip ${q.kind === 'atout' ? 'pro' : 'con'}" title="${esc(q.desc)}">
+        <input type="checkbox" name="q" value="${esc(q.name)}" ${cur ? 'checked' : ''} hidden>${esc(q.name)}${q.auto ? ' ⚙' : ''}
+        ${q.rated ? `<input type="number" inputmode="numeric" name="qr_${esc(q.name)}" value="${cur?.rating ?? ''}" placeholder="n" class="q-rate">` : ''}</label>`;
+    };
+    const pros = R.WEAPON_QUALITIES.filter((q) => q.kind === 'atout');
+    const cons = R.WEAPON_QUALITIES.filter((q) => q.kind === 'défaut');
+    openDialog({
+      title: i >= 0 ? w.name : 'Arme',
+      body: `<div class="fields">${F.text('name', 'Nom', w.name, 'full', 'autofocus')}${F.text('group', 'Groupe', w.group, '', 'placeholder="Base, Escrime, Arc…"')}${F.num('enc', 'Enc', w.enc)}
+        ${F.text('reach', 'Allonge / Portée', w.reach, '', 'placeholder="Moyenne, ou 50"')}${F.text('damage', 'Dégâts', w.damage, '', 'placeholder="BF+4"')}</div>
+        <div class="flabel">Atouts</div><div class="q-chips">${pros.map(chip).join('')}</div>
+        <div class="flabel" style="margin-top:8px">Défauts</div><div class="q-chips">${cons.map(chip).join('')}</div>
+        ${F.text('other', 'Autres atouts / défauts', parsed.other.join(', '), 'full', 'placeholder="séparés par des virgules"')}
+        <p class="small muted" style="margin:0">⚙ = effet appliqué automatiquement par le lanceur de dés. Les autres s'affichent en rappel. Maintiens le doigt sur une pastille pour voir son effet.</p>`,
+      actions: [
+        ...(i >= 0 ? [{ label: icon('trash'), cls: 'ghost', onClick: () => { c.weapons.splice(i, 1); commit(); } }, 'spacer'] : []),
+        cancel,
+        { label: 'Enregistrer', primary: true, onClick: (f) => {
+          const sel = [...f.querySelectorAll('[name=q]:checked')].map((x) => {
+            const r = f.querySelector(`[name="qr_${x.value}"]`)?.value;
+            return r ? `${x.value} ${r}` : x.value;
+          });
+          const other = f.other.value.split(',').map((x) => x.trim()).filter(Boolean);
+          Object.assign(w, {
+            name: f.name.value.trim() || 'Arme', group: f.group.value.trim(), enc: num(f.enc.value),
+            reach: f.reach.value.trim(), damage: f.damage.value.trim(), qualities: [...sel, ...other].join(', '),
+          });
+          if (i < 0) c.weapons.push(w);
+          commit();
+        } },
+      ],
+    });
   },
   editArmour(el) {
     const c = C(); const i = +el.dataset.i; const a = c.armour[i] || { name: '', locations: [], enc: 1, ap: 1, qualities: '', equipped: true };
@@ -1558,7 +1604,7 @@ function purifyEffect(c) {
 }
 
 // ---------- Lanceur de dés ----------
-function openRoll({ title, label, base, combat = false, weapon = null }) {
+function openRoll({ title, label, base, combat = false, weapon = null, parryWeapon = null }) {
   const c = C();
   const adv = +c.health.advantage || 0;
   let last = null;
@@ -1587,16 +1633,36 @@ function openRoll({ title, label, base, combat = false, weapon = null }) {
       const show = (roll) => {
         const r = R.rollResult(target(), roll);
         last = r;
+        const units = r.roll % 10;
+        const notes = [];
+        // Atouts / défauts appliqués automatiquement
+        if (weapon && r.success) {
+          if (R.hasQuality(weapon, 'hit+1')) { r.sl += 1; notes.push('Précise : +1 DR'); }
+          if (R.hasQuality(weapon, 'hit-1')) { r.sl = Math.max(0, r.sl - 1); notes.push('Imprécise : −1 DR'); }
+          if (R.hasQuality(weapon, 'crit10') && units === 0 && !r.critical) { r.critical = true; notes.push('Empaleuse : critique sur un 0'); }
+        }
+        if (parryWeapon && r.success && R.hasQuality(parryWeapon, 'parry+1')) { r.sl += 1; notes.push(`Défensive (${parryWeapon.name}) : +1 DR`); }
         const verdict = r.critical ? 'Réussite critique !' : r.fumble ? 'Maladresse !' : r.success ? 'Réussite' : 'Échec';
-        let extra = '';
+        let extra = notes.length ? `<div class="roll-line q-auto">⚙ ${notes.map(esc).join(' · ')}</div>` : '';
         if (weapon && r.success) {
           const hit = R.hitLocation(r.roll);
           const d = R.weaponDamage(c, weapon);
-          extra = `<div class="roll-line">Touché : <b>${hit.name}</b> <span class="muted">(${String(hit.n).padStart(2, '0')})</span></div>
-            <div class="roll-line">Dégâts : <b>${d != null ? `${d + r.sl}` : `${esc(weapon.damage)} + ${r.sl}`}</b> <span class="muted">(${d != null ? `${d} + ${r.sl} DR` : 'arme + DR'}) — avant BE et PA de la cible</span></div>
+          let bonus = r.sl; let how = `${r.sl} DR`;
+          if (R.hasQuality(weapon, 'dmgBest') && units > r.sl) { bonus = units; how = `${units} (unités, Dévastatrice)`; }
+          if (R.hasQuality(weapon, 'dmgUnits')) { bonus += units; how += ` + ${units} (unités, Percutante)`; }
+          extra += `<div class="roll-line">Touché : <b>${hit.name}</b> <span class="muted">(${String(hit.n).padStart(2, '0')})</span></div>
+            <div class="roll-line">Dégâts : <b>${d != null ? `${d + bonus}` : `${esc(weapon.damage)} + ${bonus}`}</b> <span class="muted">(${d != null ? `${d} + ${how}` : `arme + ${how}`}) — avant BE et PA de la cible</span></div>
             ${r.critical ? '<div class="roll-line"><b>Coup critique</b> : jet sur la table des blessures critiques.</div>' : ''}`;
         } else if (weapon && r.fumble) {
-          extra = '<div class="roll-line">Fais un jet sur la table des <b>maladresses</b>.</div>';
+          extra += '<div class="roll-line">Fais un jet sur la table des <b>maladresses</b>.</div>';
+        }
+        // Rappels des autres atouts / défauts de l'arme
+        const remind = weapon || parryWeapon;
+        if (remind) {
+          const { known, other } = R.parseQualities(remind.qualities);
+          const rows = known.filter(({ q }) => !q.auto).map(({ q, rating }) => `<li><span class="q-tag ${q.kind === 'atout' ? 'pro' : 'con'}">${esc(q.name)}${rating ? ` ${rating}` : ''}</span> ${esc(q.desc)}</li>`)
+            .concat(other.map((o) => `<li><span class="q-tag">${esc(o)}</span></li>`));
+          if (rows.length) extra += `<ul class="q-remind">${rows.join('')}</ul>`;
         }
         const fortune = +c.fate.fortune || 0;
         f.querySelector('#rResult').innerHTML = `<div class="roll-res ${r.success ? 'ok' : 'ko'}">
