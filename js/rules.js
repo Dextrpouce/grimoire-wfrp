@@ -99,9 +99,28 @@ export function careerChangeCost(levelCompleted) { return levelCompleted ? 100 :
 // ---------- Valeurs dérivées ----------
 export const norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
 
+// Talents qui donnent +5 permanent à une caractéristique (hors augmentations achetées)
+export const CHAR_TALENTS = {
+  CC: ['Guerrier-Né', 'Warrior Born'], CT: ['Bon Tireur', 'Marksman'], F: ['Très Fort', 'Very Strong'],
+  E: ['Très Résistant', 'Very Resilient'], I: ["Vif d'Esprit", 'Sharp'], Ag: ['Réflexes Éclairs', 'Lightning Reflexes'],
+  Dex: ['Doigt Agile', 'Doigts Agiles', 'Nimble Fingered'], Int: ['Intelligent', 'Savvy'],
+  FM: ["Calme d'Esprit", 'Coolheaded'], Soc: ['Charmant', 'Suave'],
+};
+
+// Bonus de talent d'une caractéristique : { value, names } (ex. { value: 5, names: ['Très Fort'] })
+export function talentCharBonus(c, key) {
+  const names = [];
+  let value = 0;
+  for (const n of CHAR_TALENTS[key] || []) {
+    const t = c.talents?.find((x) => norm(x.name) === norm(n));
+    if (t && +t.times > 0) { value += 5 * (+t.times || 1); names.push(t.name); }
+  }
+  return { value, names };
+}
+
 export function charValue(c, key) {
   const ch = c.chars[key];
-  return (+ch.initial || 0) + (+ch.advances || 0) + (+ch.modifier || 0);
+  return (+ch.initial || 0) + (+ch.advances || 0) + (+ch.modifier || 0) + talentCharBonus(c, key).value;
 }
 export const bonus = (v) => Math.floor(v / 10);
 export const charBonus = (c, key) => bonus(charValue(c, key));
@@ -149,10 +168,20 @@ export function woundsBreakdown(c) {
 }
 export const maxWounds = (c) => woundsBreakdown(c).total;
 
+const timesAny = (c, names) => names.reduce((n, name) => n + talentTimes(c, name), 0);
+
 export function movement(c) {
-  const base = c.moveOverride != null && c.moveOverride !== '' ? +c.moveOverride : (SPECIES[c.species]?.move ?? 4);
-  return { move: base, walk: base * 2, run: base * 4 };
+  const species = c.moveOverride != null && c.moveOverride !== '' ? +c.moveOverride : (SPECIES[c.species]?.move ?? 4);
+  const fleet = timesAny(c, ['Pieds Légers', 'Fleet Footed']);
+  const base = species + fleet;
+  return { move: base, walk: base * 2, run: base * 4, fleet };
 }
+
+// Chance : maximum de points de Chance = Destin + niveau du talent ; Fort d'Esprit : idem pour la Détermination
+export const luckBonus = (c) => timesAny(c, ['Chance', 'Chanceux', 'Luck']);
+export const strongMindBonus = (c) => timesAny(c, ["Fort d'Esprit", 'Strong-minded']);
+export const maxFortune = (c) => (+c.fate.fate || 0) + luckBonus(c);
+export const maxResolve = (c) => (+c.fate.resilience || 0) + strongMindBonus(c);
 
 export function encumbrance(c) {
   const sum = (arr) => arr.reduce((t, i) => t + (+i.enc || 0) * (i.qty != null ? (+i.qty || 0) : 1), 0);

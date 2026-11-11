@@ -364,3 +364,6 @@ label.chip:has(input:checked) { background: var(--blood); color: #fbe9d3; border
 [hidden] { display: none !important; }
 .badge small { font-size: 10px; }
 .badge { white-space: nowrap; }
+.tal { color: var(--gold); font-weight: 700; }
+.char .cb .tal { font-size: 11px; }
+.talent-mark { color: var(--gold); font-size: 12px; margin-left: 4px; vertical-align: 1px; }

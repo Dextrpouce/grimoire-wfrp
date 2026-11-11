@@ -178,9 +178,10 @@ function viewFiche(c) {
     const ch = c.chars[key];
     const inC = R.charInCareer(c, key);
     const v = R.charValue(c, key);
-    return `<div class="char ${inC ? 'career' : ''}" data-act="editChar" data-k="${key}" title="${name}">
+    const tb = R.talentCharBonus(c, key);
+    return `<div class="char ${inC ? 'career' : ''}" data-act="editChar" data-k="${key}" title="${name}${tb.value ? ` — +${tb.value} ${tb.names.join(', ')}` : ''}">
       <span class="ck">${key}</span><span class="cv">${v}</span>
-      <span class="cb">${ch.initial}${ch.advances ? ` + ${ch.advances}` : ''}${ch.modifier ? ` ${ch.modifier > 0 ? '+' : ''}${ch.modifier}` : ''}</span>
+      <span class="cb">${ch.initial}${ch.advances ? ` + ${ch.advances}` : ''}${ch.modifier ? ` ${ch.modifier > 0 ? '+' : ''}${ch.modifier}` : ''}${tb.value ? ` <b class="tal">+${tb.value}★</b>` : ''}</span>
       ${ui.levelUp ? plusBtn(c, R.advanceCost('char', +ch.advances || 0, inC), 'buyChar', `data-k="${key}"`, inC) : ''}
     </div>`;
   }).join('');
@@ -188,11 +189,13 @@ function viewFiche(c) {
   let skills = [...c.skills].sort((a, b) => R.skillLabel(a).localeCompare(R.skillLabel(b), 'fr'));
   if (ui.skillFilter === 'acquired') skills = skills.filter((s) => +s.advances > 0);
   if (ui.skillFilter === 'career') skills = skills.filter((s) => R.skillInCareer(c, s));
+  const hints = skillTalentHints(c);
   const skillRows = skills.map((s) => {
     const inC = R.skillInCareer(c, s);
     const adv = +s.advances || 0;
+    const h = hints.get(s.id) || [];
     return `<div class="skill ${adv ? '' : 'zero'}" data-act="editSkill" data-id="${s.id}" role="button">
-      <span class="sn"><b>${esc(R.skillLabel(s))}</b>${inC ? '<span class="career-mark">◆</span>' : ''}</span>
+      <span class="sn"><b>${esc(R.skillLabel(s))}</b>${inC ? '<span class="career-mark">◆</span>' : ''}${h.length ? `<span class="talent-mark" title="${esc(h.map((x) => x.name).join(', '))}">★</span>` : ''}</span>
       <span class="sc">${s.char}</span><span class="sa">${adv || '–'}</span><span class="st">${R.skillValue(c, s)}</span>
       ${ui.levelUp ? `<span>${plusBtn(c, R.advanceCost('skill', adv, inC), 'buySkill', `data-id="${s.id}"`, inC)}</span>` : ''}
     </div>`;
@@ -216,11 +219,11 @@ function viewFiche(c) {
       <h2>Caractéristiques</h2>
       <div class="chars">${chars}</div>
       <div class="stats-row">
-        <div class="stat"><div class="sk">Mouvement</div><div class="sv">${mv.move}</div></div>
+        <div class="stat" title="${mv.fleet ? `+${mv.fleet} Pieds Légers` : ''}"><div class="sk">Mouvement</div><div class="sv">${mv.move}${mv.fleet ? '<small class="tal">★</small>' : ''}</div></div>
         <div class="stat"><div class="sk">Marche</div><div class="sv">${mv.walk}</div></div>
         <div class="stat"><div class="sk">Course</div><div class="sv">${mv.run}</div></div>
       </div>
-      <p class="small muted" style="margin:10px 0 0">Touchez une caractéristique pour la modifier librement. ◆ = dans votre carrière.</p>
+      <p class="small muted" style="margin:10px 0 0">Touchez une caractéristique pour la modifier librement. ◆ = dans votre carrière · ★ = bonus de talent.</p>
     </section>
     <section class="card" style="grid-column: span 2">
       <h2>Compétences</h2>
@@ -281,9 +284,9 @@ function viewSante(c) {
         <h2>Destin & Résilience <button class="icon-btn h-act" data-act="editFate" aria-label="Modifier">${icon('edit')}</button></h2>
         <div class="fate-grid">
           <div class="fate-box"><div class="fk">Destin</div><div class="pips">${pips(+f.fate || 0, +f.fate || 0, 'noop')}</div></div>
-          <div class="fate-box"><div class="fk">Chance</div><div class="pips">${pips(+f.fate || 0, +f.fortune || 0, 'fortune')}</div></div>
+          <div class="fate-box"><div class="fk">Chance${R.luckBonus(c) ? ' <span class="tal" title="Talent Chance">★</span>' : ''}</div><div class="pips">${pips(R.maxFortune(c), +f.fortune || 0, 'fortune')}</div></div>
           <div class="fate-box"><div class="fk">Résilience</div><div class="pips">${pips(+f.resilience || 0, +f.resilience || 0, 'noop', true)}</div></div>
-          <div class="fate-box"><div class="fk">Détermination</div><div class="pips">${pips(+f.resilience || 0, +f.resolve || 0, 'resolve', true)}</div></div>
+          <div class="fate-box"><div class="fk">Détermination${R.strongMindBonus(c) ? ' <span class="tal" title="Talent Fort d\'Esprit">★</span>' : ''}</div><div class="pips">${pips(R.maxResolve(c), +f.resolve || 0, 'resolve', true)}</div></div>
         </div>
         ${f.motivation ? `<p class="small" style="margin:10px 0 0"><b>Motivation :</b> ${esc(f.motivation)}</p>` : ''}
         <div class="row" style="margin-top:10px"><button class="btn ghost small" data-act="newSession">Nouvelle séance (Chance au max)</button></div>
@@ -469,6 +472,42 @@ function viewProg(c) {
   </div>`;
 }
 
+// Noms de compétences employés dans les « tests associés » des talents → nom de la feuille
+const SKILL_SYNONYMS = {
+  melee: 'corps a corps', connaissance: 'savoir', connaissances: 'savoir', equitation: 'chevaucher',
+  canalisation: 'focalisation', commerages: 'ragot', soins: 'guerison', tir: 'projectiles', escalader: 'escalade',
+  divertir: 'divertissement', jeu: 'pari', jeux: 'pari', jouer: 'pari', evaluer: 'evaluation',
+  interpretation: 'representation', conduite: "conduite d'attelage", canotage: 'ramer', nager: 'natation',
+  consommation: "resistance a l'alcool",
+};
+const baseOf = (s) => R.norm(String(s).replace(/\s*\(.*$/, ''));
+
+// Pour chaque compétence du personnage, la liste des talents qu'il possède et qui la concernent
+function skillTalentHints(c) {
+  const bases = c.skills.map((s) => ({ s, base: baseOf(s.name) }));
+  const out = new Map();
+  for (const t of c.talents) {
+    const info = store.findTalent(t.name);
+    if (!info?.tests || +t.times <= 0) continue;
+    for (const raw of info.tests.split(/[,/;]|\bou\b|\bet\b/)) {
+      let part = R.norm(raw.replace(/\(.*?\)/g, ''));
+      const first = part.split(' ')[0];
+      if (SKILL_SYNONYMS[first]) part = SKILL_SYNONYMS[first] + part.slice(first.length);
+      if (!part) continue;
+      // La compétence au nom le plus long qui correspond gagne (« Résistance à l'alcool » plutôt que « Résistance »)
+      const hits = bases.filter(({ base }) => part === base || part.startsWith(base + ' '));
+      const best = Math.max(0, ...hits.map((h) => h.base.length));
+      for (const { s, base } of hits) {
+        if (base.length !== best) continue;
+        const list = out.get(s.id) || [];
+        if (!list.some((x) => x.name === t.name)) list.push({ name: t.name, times: +t.times || 1, desc: info.desc });
+        out.set(s.id, list);
+      }
+    }
+  }
+  return out;
+}
+
 // « Bonus de FM » → « BFM », « 2 » → « 2 »
 const maxShort = (m) => {
   const k = String(m || '').match(/bonus\s+de\s+([A-Za-z]+)/i);
@@ -590,6 +629,12 @@ const A = {
     openDialog({
       title: `${k} — ${R.CHARS.find((x) => x.key === k).name}`,
       body: `<div class="fields">${F.num('initial', 'Initiale', ch.initial)}${F.num('advances', 'Augmentations', ch.advances)}${F.num('modifier', 'Modificateur temporaire', ch.modifier || 0, 'full')}</div>
+        ${(() => {
+          const tb = R.talentCharBonus(c, k);
+          if (!tb.value) return '';
+          const twice = (+ch.modifier || 0) >= tb.value;
+          return `<div class="cost-line ${twice ? 'bad' : ''}">★ <b>+${tb.value}</b> de talent (${esc(tb.names.join(', '))}), ajouté automatiquement.${twice ? '<br>Si ton modificateur correspond à ce même talent, remets-le à 0 : sinon le bonus est compté deux fois.' : ''}</div>`;
+        })()}
         <p class="small muted">Modification libre, sans dépense d'XP (création, correction). Pour dépenser de l'XP, utilise le mode progression.</p>`,
       actions: [cancel, { label: 'Enregistrer', primary: true, onClick: (f) => {
         ch.initial = num(f.initial.value); ch.advances = Math.max(0, num(f.advances.value)); ch.modifier = num(f.modifier.value); commit();
@@ -605,7 +650,8 @@ const A = {
         ${F.text('spec', 'Spécialisation', s.spec, '', 'placeholder="ex. Escrime"')}
         ${F.select('char', 'Caractéristique', s.char, charOpts)}
         ${F.num('advances', 'Augmentations', s.advances, 'full')}
-      </div><p class="small muted">Valeur : ${R.skillValue(c, s)} = ${s.char} ${R.charValue(c, s.char)} + ${s.advances || 0}. ${R.skillInCareer(c, s) ? '◆ Compétence de carrière.' : ''}</p>`,
+      </div><p class="small muted">Valeur : ${R.skillValue(c, s)} = ${s.char} ${R.charValue(c, s.char)} + ${s.advances || 0}. ${R.skillInCareer(c, s) ? '◆ Compétence de carrière.' : ''}</p>
+      ${(skillTalentHints(c).get(s.id) || []).map((h) => `<div class="cost-line">★ <b>${esc(h.name)}</b>${h.times > 1 ? ` (niveau ${h.times})` : ''} — ${esc(h.desc || 'bonus lors des tests')}</div>`).join('')}`,
       actions: [
         ...(s.basic ? [] : [{ label: icon('trash'), cls: 'ghost', onClick: () => { c.skills = c.skills.filter((x) => x !== s); commit(); } }, 'spacer']),
         cancel,
@@ -755,7 +801,7 @@ const A = {
   },
   fortune(el) { const c = C(); const n = +el.dataset.n; c.fate.fortune = n < c.fate.fortune ? n : n + 1; commit(); },
   resolve(el) { const c = C(); const n = +el.dataset.n; c.fate.resolve = n < c.fate.resolve ? n : n + 1; commit(); },
-  newSession() { const c = C(); c.fate.fortune = c.fate.fate; commit(); toast('Points de Chance restaurés'); },
+  newSession() { const c = C(); c.fate.fortune = R.maxFortune(c); commit(); toast('Points de Chance restaurés'); },
   editFate() {
     const c = C(); const f0 = c.fate;
     openDialog({
