@@ -221,6 +221,9 @@ export function weaponDamage(c, w) {
   return null;
 }
 
+// Corruption : au-delà de BE + BFM, test de mutation
+export const corruptionMax = (c) => charBonus(c, 'E') + charBonus(c, 'FM');
+
 // ---------- Combat et jets de dés ----------
 const MELEE_REACH = ['personnelle', 'tres courte', 'courte', 'moyenne', 'longue', 'tres longue', 'immense'];
 const RANGED_GROUPS = ['arc', 'arbalete', 'fronde', 'poudre noire', 'lancer', 'explosifs', 'ingenierie', 'entrave', 'arme de jet'];

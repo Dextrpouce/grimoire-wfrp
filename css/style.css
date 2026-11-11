@@ -415,3 +415,32 @@ label.chip:has(input:checked) { background: var(--blood); color: #fbe9d3; border
 .roll-line { margin-top: 8px; font-size: 15px; }
 @media (max-width: 719px) { .combat > .stack:nth-child(2) { order: -1; } }
 .attack .li-title { font-weight: 700; font-size: 17px; }
+
+/* ---------- Effet de corruption ---------- */
+.scare {
+  position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; overflow: hidden; cursor: pointer;
+  background: radial-gradient(circle at 50% 45%, rgba(55, 0, 0, .96), #000 70%);
+  animation: scareIn .12s ease-out, scareFlicker .5s steps(2) .12s 3;
+}
+.scare.out { animation: scareOut .4s ease-in forwards; }
+.scare-star {
+  position: absolute; width: min(120vw, 120vh); height: min(120vw, 120vh); color: #8c1c1c; opacity: .55;
+  filter: drop-shadow(0 0 18px #ff2a00) drop-shadow(0 0 40px #3cff6a);
+  animation: starSpin 6s linear infinite, starPulse .9s ease-in-out infinite alternate;
+}
+.scare-face { position: relative; width: min(70vw, 52vh); animation: faceLunge .45s cubic-bezier(.2, 1.6, .4, 1) both, faceShake .08s linear .45s 14; filter: drop-shadow(0 0 30px #000); }
+.scare-text { position: absolute; bottom: 14%; left: 8%; right: 8%; text-align: center; font-family: var(--font-title); font-size: clamp(18px, 4.5vw, 30px); color: #f3d9a0; text-shadow: 0 0 12px #ff2a00, 0 0 2px #000; animation: textIn .6s ease-out .3s both; }
+.scare-text b { color: #7dff8f; font-size: 1.3em; text-shadow: 0 0 18px #3cff6a; }
+.scare-count { position: absolute; top: calc(18px + env(safe-area-inset-top, 0px)); font-family: var(--font-title); color: #c9a14a; letter-spacing: .12em; text-transform: uppercase; font-size: 13px; }
+.scare.lvl4 .scare-star, .scare.lvl5 .scare-star { opacity: .85; color: #b3261e; }
+.scare.lvl5 .scare-face { animation-duration: .35s, .06s; }
+.scare.gentle, .scare.gentle * { animation: none !important; }
+.scare.gentle { opacity: 1; transition: opacity .4s; }
+@keyframes scareIn { from { opacity: 0; } }
+@keyframes scareOut { to { opacity: 0; transform: scale(1.05); } }
+@keyframes scareFlicker { 50% { filter: brightness(2.2) saturate(1.6); } }
+@keyframes starSpin { to { transform: rotate(360deg); } }
+@keyframes starPulse { to { opacity: .9; } }
+@keyframes faceLunge { from { transform: scale(.15) translateY(30%); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes faceShake { 25% { translate: -6px 3px; } 50% { translate: 5px -4px; } 75% { translate: -3px -2px; } }
+@keyframes textIn { from { opacity: 0; letter-spacing: .4em; } }

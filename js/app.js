@@ -622,7 +622,8 @@ function viewCarnet(c) {
       </section>
       <section class="card">
         <h2>Corruption</h2>
-        <div class="counter"><span class="ck">Points de corruption</span>${stepper('corruption', c.corruption)}</div>
+        <div class="counter"><span class="ck">Points de corruption <span class="small muted" style="text-transform:none;letter-spacing:0">(seuil ${R.corruptionMax(c)} = BE + BFM)</span></span>${stepper('corruption', c.corruption)}</div>
+        ${(+c.corruption || 0) > R.corruptionMax(c) ? '<div class="cost-line bad">☠ Seuil dépassé : <b>test de mutation</b> (voir le livre de règles).</div>' : ''}
         <div class="counter"><span class="ck">Péché</span>${stepper('sin', c.sin)}</div>
         <h3>Mutations</h3>${bind('mutations', c.mutations, 'area')}
       </section>
@@ -981,7 +982,16 @@ const A = {
     });
   },
   healCrit(el) { const c = C(); confirmDialog('Blessure guérie ?', `Retirer « ${esc(c.health.criticals[+el.dataset.i].name)} » ?`, 'Guérie', () => { c.health.criticals.splice(+el.dataset.i, 1); commit(); }); },
-  step(el) { const c = C(); const p = el.dataset.p; c[p] = Math.max(0, (+c[p] || 0) + +el.dataset.d); commit(); },
+  step(el) {
+    const c = C(); const p = el.dataset.p; const d = +el.dataset.d;
+    c[p] = Math.max(0, (+c[p] || 0) + d); commit();
+    if (p === 'corruption' && d > 0) corruptionScare(c);
+  },
+  toggleScare() {
+    const off = localStorage.getItem('whfrp4.scare') === 'off';
+    localStorage.setItem('whfrp4.scare', off ? 'on' : 'off');
+    toast(off ? 'Effet de corruption activé' : 'Effet de corruption désactivé');
+  },
 
   // --- Équipement ---
   pay(el) {
@@ -1296,6 +1306,11 @@ const A = {
           <button type="button" class="btn ghost small" data-m="import">${icon('upload')} Importer</button>
           <input type="file" accept=".json,application/json" hidden id="importFile">
         </div>
+        <h3>Ambiance</h3>
+        <div class="row">
+          <label class="row small" style="flex:1"><input type="checkbox" id="scareToggle" ${localStorage.getItem('whfrp4.scare') === 'off' ? '' : 'checked'} style="width:auto"> Effet de surprise quand la Corruption augmente</label>
+          <button type="button" class="btn ghost small" id="scareTry">Essayer</button>
+        </div>
         <h3>Personnage</h3>
         <div class="row">
           <button type="button" class="btn ghost small" data-m="duplicate">Dupliquer</button>
@@ -1318,6 +1333,11 @@ const A = {
           const a = document.createElement('a');
           a.href = URL.createObjectURL(blob); a.download = `wfrp-personnages-${new Date().toISOString().slice(0, 10)}.json`; a.click();
           setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+        };
+        f.querySelector('#scareToggle').onchange = (e) => { localStorage.setItem('whfrp4.scare', e.target.checked ? 'on' : 'off'); };
+        f.querySelector('#scareTry').onclick = () => {
+          if (!f.querySelector('#scareToggle').checked) { toast("Active d'abord l'effet"); return; }
+          dlg.close(); corruptionScare(C());
         };
         const file = f.querySelector('#importFile');
         f.querySelector('[data-m=import]').onclick = () => file.click();
@@ -1350,6 +1370,78 @@ const A = {
     toast(store.status.message);
   },
 };
+
+// ---------- Effet de corruption (« jumpscare ») ----------
+const CHAOS_STAR = (() => {
+  // Symbole du chaos : cercle et huit flèches (dessin géométrique simple)
+  const arrows = Array.from({ length: 8 }, (_, i) => `<g transform="rotate(${i * 45} 100 100)">
+    <path d="M100 100 L100 14" stroke-width="7"/><path d="M100 4 L86 28 L100 22 L114 28 Z" stroke="none"/></g>`).join('');
+  return `<svg class="scare-star" viewBox="0 0 200 200" aria-hidden="true"><g fill="currentColor" stroke="currentColor" stroke-linecap="round">${arrows}</g>
+    <circle cx="100" cy="100" r="30" fill="none" stroke="currentColor" stroke-width="9"/></svg>`;
+})();
+
+// Créature originale : visage d'ombre aux yeux luisants et à la gueule béante
+const SCARE_FACE = `<svg class="scare-face" viewBox="0 0 200 240" aria-hidden="true">
+  <defs><radialGradient id="eyeGlow"><stop offset="0" stop-color="#fff6b0"/><stop offset=".35" stop-color="#ffcc33"/><stop offset="1" stop-color="#ff2a00" stop-opacity="0"/></radialGradient></defs>
+  <path d="M100 6C46 6 18 52 22 104c3 40 22 70 40 92 10 12 22 38 38 38s28-26 38-38c18-22 37-52 40-92C182 52 154 6 100 6z" fill="#0b0605"/>
+  <path d="M40 92c14-14 34-16 50-4M160 92c-14-14-34-16-50-4" stroke="#3a0d08" stroke-width="6" fill="none"/>
+  <ellipse cx="66" cy="112" rx="24" ry="16" fill="url(#eyeGlow)"/><ellipse cx="134" cy="112" rx="24" ry="16" fill="url(#eyeGlow)"/>
+  <ellipse cx="66" cy="112" rx="3.5" ry="11" fill="#1a0000"/><ellipse cx="134" cy="112" rx="3.5" ry="11" fill="#1a0000"/>
+  <path d="M58 160c14 30 70 30 84 0-10 34-74 34-84 0z" fill="#2a0000"/>
+  <path d="M58 160l8 18 6-16 7 20 7-20 7 22 7-22 7 20 7-20 6 16 8-18" fill="none" stroke="#e8dcc0" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M64 186l8-12 7 14 7-14 7 16 7-16 7 14 7-14 8 12" fill="none" stroke="#e8dcc0" stroke-width="3" stroke-linejoin="round"/>
+</svg>`;
+
+const WHISPERS = [
+  'Les Dieux Sombres ont entendu ton nom…', 'Quelque chose remue sous ta peau…',
+  'Le Warp murmure, et tu écoutes…', 'Une voix rit au fond de ton crâne…',
+  'Tes rêves ont le goût de la cendre…', 'Tes ombres ne te suivent plus tout à fait…',
+];
+
+function scareSound(level) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const t = ctx.currentTime;
+    const master = ctx.createGain();
+    master.gain.setValueAtTime(0.0001, t);
+    master.gain.exponentialRampToValueAtTime(0.5 + level * 0.1, t + 0.03);
+    master.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
+    master.connect(ctx.destination);
+    // Cri : deux dents de scie qui plongent, légèrement désaccordées
+    for (const f0 of [880, 933]) {
+      const o = ctx.createOscillator(); o.type = 'sawtooth';
+      o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(70, t + 1.2);
+      o.connect(master); o.start(t); o.stop(t + 1.6);
+    }
+    // Souffle : bruit blanc filtré
+    const buf = ctx.createBuffer(1, ctx.sampleRate * 1.5, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+    const noise = ctx.createBufferSource(); noise.buffer = buf;
+    const filt = ctx.createBiquadFilter(); filt.type = 'bandpass'; filt.frequency.value = 900;
+    noise.connect(filt); filt.connect(master); noise.start(t);
+    setTimeout(() => ctx.close(), 2000);
+  } catch { /* pas de son disponible */ }
+}
+
+function corruptionScare(c) {
+  if (localStorage.getItem('whfrp4.scare') === 'off') return;
+  const level = Math.min(5, +c.corruption || 1);
+  const over = (+c.corruption || 0) > R.corruptionMax(c);
+  const gentle = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  document.getElementById('scare')?.remove();
+  const el = document.createElement('div');
+  el.id = 'scare';
+  el.className = `scare ${gentle ? 'gentle' : ''} lvl${level}`;
+  el.innerHTML = `${CHAOS_STAR}${SCARE_FACE}
+    <div class="scare-text">${over ? '<b>Test de mutation !</b>' : esc(WHISPERS[Math.floor(Math.random() * WHISPERS.length)])}</div>
+    <div class="scare-count">Corruption ${c.corruption} / ${R.corruptionMax(c)}</div>`;
+  document.body.appendChild(el);
+  if (!gentle) { scareSound(level); navigator.vibrate?.([90, 40, 160, 40, 60 * level]); }
+  const close = () => { el.classList.add('out'); setTimeout(() => el.remove(), 400); };
+  el.addEventListener('click', close);
+  setTimeout(close, over ? 3200 : 2200);
+}
 
 // ---------- Lanceur de dés ----------
 function openRoll({ title, label, base, combat = false, weapon = null }) {
