@@ -306,6 +306,16 @@ export function parseQualities(text) {
   }
   return { known, other };
 }
+// Bouclier porté : l'arme qui a l'atout « Bouclier » avec le plus haut niveau → { rating, name } ou null
+export function shield(c) {
+  let best = null;
+  for (const w of c.weapons || []) {
+    const k = parseQualities(w.qualities).known.find((x) => x.q.name === 'Bouclier');
+    if (k && (!best || (k.rating || 1) > best.rating)) best = { rating: k.rating || 1, name: w.name };
+  }
+  return best;
+}
+
 export const hasQuality = (w, auto) => parseQualities(w?.qualities).known.some((k) => k.q.auto === auto);
 
 // Résultat d'un test d100 : réussite, degrés de réussite (DR), critique sur un double

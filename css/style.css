@@ -514,3 +514,7 @@ label.chip:has(input:checked) { background: var(--blood); color: #fbe9d3; border
 }
 .combat-bar { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .cb-item { min-width: 0; }
+
+/* Case Bouclier sous la gravure des points d'armure */
+.body-map .shield-box { grid-column: 2; grid-row: 4; }
+.body-map .shield-box.none .lv { color: var(--ink-soft); }

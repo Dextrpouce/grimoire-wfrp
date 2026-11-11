@@ -360,8 +360,13 @@ function viewSante(c) {
           ${loc('tete')}${FIGURE}${loc('brasG')}
           ${loc('brasD')}${loc('corps')}
           ${loc('jambeD')}${loc('jambeG')}
+          ${(() => {
+            const sh = R.shield(c);
+            return `<div class="loc shield-box ${sh ? '' : 'none'}" title="${sh ? `Bouclier ${sh.rating} : ${esc(sh.name)}` : 'Aucun bouclier'}">
+              <div class="lr">🛡️ Bouclier</div><div class="lv">${sh ? sh.rating : '—'}</div><div class="ln">${sh ? esc(sh.name) : 'aucun'}</div></div>`;
+          })()}
         </div>
-        <p class="small muted" style="margin:10px 0 0">Calculés depuis les armures portées (onglet Sac).</p>
+        <p class="small muted" style="margin:10px 0 0">Calculés depuis les armures portées (onglet Sac). Le bouclier vient de l'arme qui a l'atout <b>Bouclier</b>.</p>
       </section>
       <section class="card">
         <h2>Talents de combat</h2>
