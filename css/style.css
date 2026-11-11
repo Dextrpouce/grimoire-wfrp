@@ -364,4 +364,3 @@ label.chip:has(input:checked) { background: var(--blood); color: #fbe9d3; border
 [hidden] { display: none !important; }
 .badge small { font-size: 10px; }
 .badge { white-space: nowrap; }
-@media (max-width: 420px) { nav.tabs button { font-size: 9.5px; letter-spacing: 0; } }
