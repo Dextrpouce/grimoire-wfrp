@@ -53,7 +53,7 @@ Tu n'as rien à faire tourner chez toi. Les limites gratuites de Firebase (50 00
    ```
 
 6. **Récupérer la configuration** : roue dentée ⚙ > **Paramètres du projet** > en bas, « Vos applications » > icône **`</>`** (Web). Donne un nom, ne coche pas Hosting, puis **Enregistrer l'application**. Copie le bloc `const firebaseConfig = { ... }`.
-7. Colle-le dans l'appli de l'une de ces deux façons :
+7. Colle-le dans l'appli (déjà fait pour ce projet : voir `js/config.js`) :
    - **Simple** : dans l'appli, menu **⋮** > « Configuration Firebase » > colle le bloc > **Se connecter avec Google**. C'est à refaire une fois sur chaque appareil.
    - **Définitif** : sur GitHub, ouvre `js/config.js`, clique le crayon ✏ et remplis les valeurs. Plus besoin de rien coller sur tes appareils.
 
