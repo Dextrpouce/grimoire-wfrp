@@ -1,0 +1,1017 @@
+import * as R from './rules.js';
+import { store } from './store.js';
+
+// ================= Utilitaires =================
+const $app = document.getElementById('app');
+const dlg = document.getElementById('dlg');
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+const C = () => store.current();
+const avail = (c) => (+c.xp.total || 0) - (+c.xp.spent || 0);
+const fmtDate = (t) => new Date(t).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+
+const ICONS = {
+  sheet: '<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h7M9 9h3"/>',
+  heart: '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>',
+  bag: '<path d="M5 8h14l-1 13H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>',
+  up: '<path d="M12 3l7 7h-4v6H9v-6H5z"/><path d="M8 21h8"/>',
+  book: '<path d="M4 4h6a2 2 0 0 1 2 2v14a2 2 0 0 0-2-2H4z"/><path d="M20 4h-6a2 2 0 0 0-2 2v14a2 2 0 0 1 2-2h6z"/>',
+  cloud: '<path d="M7 18h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 9.5 4.3 4.3 0 0 0 7 18z"/>',
+  dots: '<circle cx="12" cy="5" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="12" cy="19" r="1.3"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
+  trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+  check: '<path d="M5 12l5 5L20 7"/>',
+  x: '<path d="M6 6l12 12M18 6L6 18"/>',
+  edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/>',
+  star: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
+  down: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
+  upload: '<path d="M12 20V9M7 14l5-5 5 5M5 4h14"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/>',
+  skull: '<path d="M12 3a8 8 0 0 0-8 8c0 3 1.5 4.8 3 5.6V20h10v-3.4c1.5-.8 3-2.6 3-5.6a8 8 0 0 0-8-8z"/><circle cx="9" cy="11" r="1.6"/><circle cx="15" cy="11" r="1.6"/><path d="M11 20v-2M13 20v-2"/>',
+};
+const icon = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]}</svg>`;
+
+let toastTimer;
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+function commit(rerender = true) {
+  C().updatedAt = Date.now();
+  store.save();
+  if (rerender) render();
+}
+
+// ================= État de l'interface =================
+const ui = {
+  tab: localStorage.getItem('whfrp4.tab') || 'fiche',
+  levelUp: false,
+  skillFilter: localStorage.getItem('whfrp4.skillFilter') || 'all',
+};
+
+const TABS = [
+  ['fiche', 'Fiche', 'sheet'], ['sante', 'Santé', 'heart'], ['sac', 'Sac', 'bag'],
+  ['prog', 'Progrès', 'up'], ['carnet', 'Carnet', 'book'],
+];
+
+// ================= Champs de formulaire =================
+const F = {
+  text: (name, label, val, cls = '', attrs = '') => `<div class="field ${cls}"><label>${label}</label><input name="${name}" value="${esc(val)}" ${attrs}></div>`,
+  num: (name, label, val, cls = '', attrs = '') => `<div class="field ${cls}"><label>${label}</label><input type="number" inputmode="numeric" name="${name}" value="${esc(val)}" ${attrs}></div>`,
+  area: (name, label, val, cls = 'full') => `<div class="field ${cls}"><label>${label}</label><textarea name="${name}">${esc(val)}</textarea></div>`,
+  select: (name, label, val, opts, cls = '') => `<div class="field ${cls}"><label>${label}</label><select name="${name}">${opts.map((o) => {
+    const [v, l] = Array.isArray(o) ? o : [o, o];
+    return `<option value="${esc(v)}" ${String(v) === String(val) ? 'selected' : ''}>${esc(l)}</option>`;
+  }).join('')}</select></div>`,
+};
+const charOpts = R.CHARS.map((c) => [c.key, `${c.key} — ${c.name}`]);
+const num = (v) => (v === '' || v == null || isNaN(+v) ? 0 : +v);
+
+// Champ lié directement au personnage (enregistré à la frappe)
+const bind = (path, val, type = 'text', attrs = '') => type === 'area'
+  ? `<textarea data-bind="${path}" ${attrs}>${esc(val)}</textarea>`
+  : `<input data-bind="${path}" ${type === 'number' ? 'type="number" inputmode="numeric" data-num' : ''} value="${esc(val)}" ${attrs}>`;
+
+function setPath(obj, path, value) {
+  const keys = path.split('.');
+  let o = obj;
+  for (let i = 0; i < keys.length - 1; i++) o = o[keys[i]];
+  o[keys.at(-1)] = value;
+}
+
+// ================= Dialogues =================
+function openDialog({ title, body, actions = [], onOpen }) {
+  dlg.innerHTML = `<form class="card" autocomplete="off"><h2>${esc(title)}</h2>${body}<div class="dlg-actions">${actions.map((a, i) => a === 'spacer'
+    ? '<span class="spacer"></span>'
+    : `<button type="${a.primary ? 'submit' : 'button'}" class="btn ${a.cls || ''}" data-i="${i}">${a.label}</button>`).join('')}</div></form>`;
+  const form = dlg.querySelector('form');
+  const run = (a) => { const r = a.onClick ? a.onClick(form) : undefined; if (r !== false) dlg.close(); };
+  dlg.querySelectorAll('.dlg-actions button').forEach((b) => {
+    if (b.type === 'button') b.onclick = () => run(actions[b.dataset.i]);
+  });
+  form.onsubmit = (e) => { e.preventDefault(); const a = actions.find((x) => x.primary); if (a) run(a); };
+  dlg.showModal();
+  onOpen?.(form);
+}
+dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
+const cancel = { label: 'Annuler', cls: 'ghost' };
+
+function confirmDialog(title, text, okLabel, onOk) {
+  openDialog({ title, body: `<p>${text}</p>`, actions: [cancel, { label: okLabel, primary: true, onClick: onOk }] });
+}
+
+// ================= XP =================
+function spend(c, cost, label, undo) {
+  if (cost > avail(c)) { toast(`Il te manque ${cost - avail(c)} XP`); return false; }
+  c.xp.spent = (+c.xp.spent || 0) + cost;
+  c.xpLog.unshift({ id: R.uid(), date: Date.now(), kind: 'spend', amount: cost, label, undo });
+  return true;
+}
+
+function gainXp(c, amount, label) {
+  c.xp.total = (+c.xp.total || 0) + amount;
+  c.xpLog.unshift({ id: R.uid(), date: Date.now(), kind: 'gain', amount, label: label || 'Gain d\'expérience', undo: { type: 'gain' } });
+}
+
+function undoLast(c) {
+  const e = c.xpLog.find((x) => !x.undone);
+  if (!e) return;
+  const u = e.undo || {};
+  if (e.kind === 'gain') {
+    if (avail(c) < e.amount) { toast('Impossible : cet XP a déjà été dépensé'); return; }
+    c.xp.total -= e.amount;
+  } else {
+    c.xp.spent -= e.amount;
+    if (u.type === 'char') c.chars[u.key].advances = Math.max(0, c.chars[u.key].advances - 1);
+    if (u.type === 'skill') { const s = c.skills.find((x) => x.id === u.id); if (s) s.advances = Math.max(0, s.advances - 1); }
+    if (u.type === 'talent') {
+      const i = c.talents.findIndex((t) => R.norm(t.name) === R.norm(u.name));
+      if (i >= 0) { c.talents[i].times--; if (c.talents[i].times <= 0) c.talents.splice(i, 1); }
+    }
+    if (u.type === 'level') c.career.level = u.prev;
+    if (u.type === 'career') { c.career = u.prevCareer; c.careerHistory.pop(); }
+  }
+  e.undone = true;
+  toast(`Annulé : ${e.label}`);
+  commit();
+}
+
+const plusBtn = (c, cost, act, data, inCareer = true) => (cost <= avail(c)
+  ? `<button class="plus ${inCareer ? '' : 'out'}" data-act="${act}" ${data} title="${inCareer ? '' : 'Hors carrière : coût doublé'}">${icon('plus')}${cost}</button>`
+  : `<span class="cost-na">${cost} XP</span>`);
+
+// ================= Rendu =================
+function render() {
+  const c = C();
+  const y = window.scrollY;
+  $app.innerHTML = `<div class="shell ${ui.levelUp ? 'lvl' : ''}">
+    ${topbar(c)}
+    ${ui.levelUp ? `<div class="lvl-banner">${icon('star')}<span><b>Mode progression</b> — ${avail(c)} XP à dépenser. Les boutons <b>+</b> dorés apparaissent quand tu as assez d'XP ; les rosés sont hors carrière (coût ×2).</span></div>` : ''}
+    <main>${VIEWS[ui.tab](c)}</main>
+    <nav class="tabs">${TABS.map(([k, l, i]) => `<button class="${ui.tab === k ? 'active' : ''}" data-act="tab" data-tab="${k}">${icon(i)}<span>${l}</span></button>`).join('')}</nav>
+  </div>`;
+  window.scrollTo(0, y);
+}
+
+function topbar(c) {
+  const lvl = R.careerLevel(c);
+  const title = c.career.levels[lvl - 1]?.title;
+  const sub = [c.species, c.career.name, title ? `${title} (échelon ${lvl})` : (c.career.name ? `échelon ${lvl}` : '')].filter(Boolean).join(' · ');
+  const st = store.status;
+  return `<header class="topbar">
+    <button class="who" data-act="characters" aria-label="Changer de personnage">
+      <span class="crest">${esc((c.name || '?').trim().charAt(0).toUpperCase())}</span>
+      <span class="who-txt"><div class="who-name">${esc(c.name || 'Sans nom')}</div><div class="who-sub">${esc(sub || 'Touchez pour gérer vos personnages')}</div></span>
+    </button>
+    <button class="lvl-toggle ${ui.levelUp ? 'on' : ''}" data-act="toggleLevelUp">${icon('star')}<span>${avail(c)} XP</span></button>
+    <button id="syncBtn" class="icon-btn sync-${st.state}" data-act="syncNow" title="${esc(st.message)}" aria-label="Synchronisation">${icon('cloud')}<span class="sync-dot"></span></button>
+    <button class="icon-btn" data-act="menu" aria-label="Menu">${icon('dots')}</button>
+  </header>`;
+}
+
+// ---------- Fiche ----------
+function viewFiche(c) {
+  const mv = R.movement(c);
+  const chars = R.CHARS.map(({ key, name }) => {
+    const ch = c.chars[key];
+    const inC = R.charInCareer(c, key);
+    const v = R.charValue(c, key);
+    return `<div class="char ${inC ? 'career' : ''}" data-act="editChar" data-k="${key}" title="${name}">
+      <span class="ck">${key}</span><span class="cv">${v}</span>
+      <span class="cb">${ch.initial}${ch.advances ? ` + ${ch.advances}` : ''}${ch.modifier ? ` ${ch.modifier > 0 ? '+' : ''}${ch.modifier}` : ''}</span>
+      ${ui.levelUp ? plusBtn(c, R.advanceCost('char', +ch.advances || 0, inC), 'buyChar', `data-k="${key}"`, inC) : ''}
+    </div>`;
+  }).join('');
+
+  let skills = [...c.skills].sort((a, b) => R.skillLabel(a).localeCompare(R.skillLabel(b), 'fr'));
+  if (ui.skillFilter === 'acquired') skills = skills.filter((s) => +s.advances > 0);
+  if (ui.skillFilter === 'career') skills = skills.filter((s) => R.skillInCareer(c, s));
+  const skillRows = skills.map((s) => {
+    const inC = R.skillInCareer(c, s);
+    const adv = +s.advances || 0;
+    return `<div class="skill ${adv ? '' : 'zero'}" data-act="editSkill" data-id="${s.id}" role="button">
+      <span class="sn"><b>${esc(R.skillLabel(s))}</b>${inC ? '<span class="career-mark">◆</span>' : ''}</span>
+      <span class="sc">${s.char}</span><span class="sa">${adv || '–'}</span><span class="st">${R.skillValue(c, s)}</span>
+      ${ui.levelUp ? `<span>${plusBtn(c, R.advanceCost('skill', adv, inC), 'buySkill', `data-id="${s.id}"`, inC)}</span>` : ''}
+    </div>`;
+  }).join('') || '<div class="empty">Aucune compétence ici.</div>';
+
+  const talents = c.talents.map((t, i) => {
+    const inC = R.talentInCareer(c, t.name);
+    return `<div class="list-item" data-act="editTalent" data-i="${i}" role="button">
+      <span class="badge ${inC ? 'gold' : 'soft'}">${t.times}</span>
+      <span class="li-main"><div class="li-title">${esc(t.name)}${inC ? ' <span class="career-mark" style="color:var(--gold);font-size:10px">◆</span>' : ''}</div>${t.desc ? `<div class="li-sub">${esc(t.desc)}</div>` : ''}</span>
+      ${ui.levelUp ? plusBtn(c, R.talentCost(+t.times || 0, inC), 'buyTalent', `data-i="${i}"`, inC) : ''}
+    </div>`;
+  }).join('') || '<div class="empty">Aucun talent pour l\'instant.</div>';
+
+  return `<div class="grid three">
+    <section class="card span-2" style="grid-column:1/-1">
+      <h2>Caractéristiques</h2>
+      <div class="chars">${chars}</div>
+      <div class="stats-row">
+        <div class="stat"><div class="sk">Mouvement</div><div class="sv">${mv.move}</div></div>
+        <div class="stat"><div class="sk">Marche</div><div class="sv">${mv.walk}</div></div>
+        <div class="stat"><div class="sk">Course</div><div class="sv">${mv.run}</div></div>
+      </div>
+      <p class="small muted" style="margin:10px 0 0">Touchez une caractéristique pour la modifier librement. ◆ = dans votre carrière.</p>
+    </section>
+    <section class="card" style="grid-column: span 2">
+      <h2>Compétences</h2>
+      <div class="filters">
+        ${[['all', 'Toutes'], ['acquired', 'Acquises'], ['career', 'Carrière ◆']].map(([k, l]) => `<button class="chip ${ui.skillFilter === k ? 'on' : ''}" data-act="skillFilter" data-f="${k}">${l}</button>`).join('')}
+      </div>
+      <div class="skills ${ui.levelUp ? '' : 'wide'}">${skillRows}</div>
+      <div class="add-row"><button class="btn ghost small" data-act="addSkill">${icon('plus')} Compétence groupée ou avancée</button></div>
+    </section>
+    <section class="card">
+      <h2>Talents</h2>
+      ${talents}
+      <div class="add-row"><button class="btn ${ui.levelUp ? 'gold' : 'ghost'} small" data-act="addTalent">${icon('plus')} ${ui.levelUp ? 'Acheter un talent' : 'Ajouter un talent'}</button></div>
+    </section>
+  </div>`;
+}
+
+// ---------- Santé ----------
+const FIGURE = `<svg class="fig" viewBox="0 0 110 200" aria-hidden="true"><g fill="rgba(60,40,22,.18)" stroke="rgba(60,40,22,.45)" stroke-width="1.5">
+  <circle cx="55" cy="22" r="15"/><path d="M33 42h44l6 60H27z"/><path d="M33 44 16 98l9 3 14-42z"/><path d="M77 44l17 54-9 3-14-42z"/>
+  <path d="M30 104h24l-3 88H37z"/><path d="M56 104h24l-7 88H59z"/></g></svg>`;
+
+function viewSante(c) {
+  const wb = R.woundsBreakdown(c);
+  const max = wb.total;
+  const cur = Math.min(c.health.wounds ?? max, max);
+  const pct = max ? Math.max(0, cur / max * 100) : 0;
+  const f = c.fate;
+  const ap = R.armourPoints(c);
+  const loc = (k) => { const l = R.LOCATIONS.find((x) => x.key === k); return `<div class="loc"><div class="lr">${l.range}</div><div class="lv">${ap[k]}</div><div class="ln">${l.name}</div></div>`; };
+  const pips = (total, on, act, red = false) => total
+    ? Array.from({ length: total }, (_, i) => `<button class="pip ${red ? 'red' : ''} ${i < on ? 'on' : ''}" data-act="${act}" data-n="${i}" aria-label="point ${i + 1}"></button>`).join('')
+    : '<span class="small muted">—</span>';
+
+  return `<div class="grid two">
+    <div class="stack">
+      <section class="card wounds">
+        <h2>Blessures</h2>
+        <div class="big">${cur}<small> / ${max}</small></div>
+        <div class="bar"><i style="width:${pct}%"></i></div>
+        <div class="wound-btns">
+          <button class="btn" data-act="wound" data-d="-5">−5</button><button class="btn" data-act="wound" data-d="-1">−1</button>
+          <button class="btn green" data-act="wound" data-d="1">+1</button><button class="btn green" data-act="wound" data-d="5">+5</button>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn gold" style="flex:1" data-act="damage">${icon('skull')} Encaisser un coup</button>
+          <button class="btn ghost" style="flex:1" data-act="healFull">Soins complets</button>
+        </div>
+        <div class="breakdown">
+          <div class="stat"><div class="sk">BF</div><div class="sv">${wb.sb}</div></div>
+          <div class="stat"><div class="sk">BE×2</div><div class="sv">${wb.tb2}</div></div>
+          <div class="stat"><div class="sk">BFM</div><div class="sv">${wb.wpb}</div></div>
+          <div class="stat"><div class="sk">Dur à cuire</div><div class="sv">${wb.hardy}</div></div>
+          <div class="stat" data-act="woundsExtra" role="button"><div class="sk">Autre +</div><div class="sv">${wb.extra}</div></div>
+        </div>
+      </section>
+      <section class="card">
+        <h2>Destin & Résilience <button class="icon-btn h-act" data-act="editFate" aria-label="Modifier">${icon('edit')}</button></h2>
+        <div class="fate-grid">
+          <div class="fate-box"><div class="fk">Destin</div><div class="pips">${pips(+f.fate || 0, +f.fate || 0, 'noop')}</div></div>
+          <div class="fate-box"><div class="fk">Chance</div><div class="pips">${pips(+f.fate || 0, +f.fortune || 0, 'fortune')}</div></div>
+          <div class="fate-box"><div class="fk">Résilience</div><div class="pips">${pips(+f.resilience || 0, +f.resilience || 0, 'noop', true)}</div></div>
+          <div class="fate-box"><div class="fk">Détermination</div><div class="pips">${pips(+f.resilience || 0, +f.resolve || 0, 'resolve', true)}</div></div>
+        </div>
+        ${f.motivation ? `<p class="small" style="margin:10px 0 0"><b>Motivation :</b> ${esc(f.motivation)}</p>` : ''}
+        <div class="row" style="margin-top:10px"><button class="btn ghost small" data-act="newSession">Nouvelle séance (Chance au max)</button></div>
+      </section>
+      <section class="card">
+        <h2>Avantage</h2>
+        <div class="row between">
+          <button class="btn" style="width:56px;font-size:22px" data-act="adv" data-d="-1">−</button>
+          <span class="adv-val">${c.health.advantage || 0}</span>
+          <button class="btn green" style="width:56px;font-size:22px" data-act="adv" data-d="1">+</button>
+          <button class="btn ghost small" data-act="adv" data-d="reset">Remettre à 0</button>
+        </div>
+      </section>
+    </div>
+    <div class="stack">
+      <section class="card">
+        <h2>États</h2>
+        <div class="conds">${R.CONDITIONS.map((cd) => {
+          const n = +c.health.conditions[cd.name] || 0;
+          return `<button class="cond ${n ? 'on' : ''}" data-act="cond" data-c="${esc(cd.name)}"><span class="cn">${cd.name}</span>${n ? `${cd.stack ? `<span class="badge gold">${n}</span>` : ''}<span class="cminus" data-act="condMinus" data-c="${esc(cd.name)}">−</span>` : ''}</button>`;
+        }).join('')}</div>
+      </section>
+      <section class="card">
+        <h2>Blessures critiques</h2>
+        ${c.health.criticals.map((cr, i) => `<div class="list-item"><span class="li-main"><div class="li-title">${esc(cr.name)}</div><div class="li-sub">${esc(cr.location)}${cr.desc ? ` — ${esc(cr.desc)}` : ''}</div></span><button class="icon-btn" style="color:var(--blood)" data-act="healCrit" data-i="${i}" aria-label="Guérie">${icon('check')}</button></div>`).join('') || '<div class="empty">Aucune, pour l\'instant…</div>'}
+        <div class="add-row"><button class="btn ghost small" data-act="addCrit">${icon('plus')} Blessure critique</button></div>
+      </section>
+      <section class="card">
+        <h2>Points d'armure</h2>
+        <div class="body-map">
+          ${loc('tete')}${FIGURE}${loc('brasG')}
+          ${loc('brasD')}${loc('corps')}
+          ${loc('jambeD')}${loc('jambeG')}
+        </div>
+        <p class="small muted" style="margin:10px 0 0">Calculés depuis les armures portées (onglet Équipement).</p>
+      </section>
+      <section class="card">
+        <h2>Corruption</h2>
+        <div class="counter"><span class="ck">Points de corruption</span>${stepper('corruption', c.corruption)}</div>
+        <div class="counter"><span class="ck">Péché</span>${stepper('sin', c.sin)}</div>
+      </section>
+    </div>
+  </div>`;
+}
+
+const stepper = (path, val) => `<span class="step"><button data-act="step" data-p="${path}" data-d="-1">−</button><span class="val">${+val || 0}</span><button data-act="step" data-p="${path}" data-d="1">+</button></span>`;
+
+// ---------- Équipement ----------
+function viewSac(c) {
+  const enc = R.encumbrance(c);
+  const ratio = enc.max ? enc.total / enc.max : 0;
+  const weapons = c.weapons.map((w, i) => {
+    const d = R.weaponDamage(c, w);
+    return `<div class="list-item weapon" data-act="editWeapon" data-i="${i}" role="button"><span class="li-main">
+      <div class="li-title">${esc(w.name)}<span class="dmg">${d != null ? `${d} <small class="muted">(${esc(w.damage)})</small>` : esc(w.damage)}</span></div>
+      <div class="li-sub">${[w.group, w.reach, w.qualities].filter(Boolean).map(esc).join(' · ')}${w.enc ? ` · Enc ${w.enc}` : ''}</div>
+    </span></div>`;
+  }).join('') || '<div class="empty">Aucune arme.</div>';
+  const armour = c.armour.map((a, i) => `<div class="list-item"><button class="equip-toggle ${a.equipped ? 'on' : ''}" data-act="toggleEquip" data-i="${i}" aria-label="Portée"></button>
+    <span class="li-main" data-act="editArmour" data-i="${i}" role="button"><div class="li-title">${esc(a.name)} <span class="badge soft">${a.ap || 0} PA</span></div>
+    <div class="li-sub">${(a.locations || []).map((k) => R.LOCATIONS.find((l) => l.key === k)?.name).filter(Boolean).join(', ') || 'Aucune localisation'}${a.qualities ? ` · ${esc(a.qualities)}` : ''}${a.enc ? ` · Enc ${a.enc}` : ''}</div></span></div>`).join('') || '<div class="empty">Aucune armure.</div>';
+  const items = c.items.map((it, i) => `<div class="list-item"><span class="li-main" data-act="editItem" data-i="${i}" role="button"><div class="li-title">${esc(it.name)}</div><div class="li-sub">${it.enc ? `Enc ${it.enc}` : ''}${it.notes ? ` ${esc(it.notes)}` : ''}</div></span>
+    <span class="qty"><button data-act="qty" data-i="${i}" data-d="-1">−</button><span>${it.qty ?? 1}</span><button data-act="qty" data-i="${i}" data-d="1">+</button></span></div>`).join('') || '<div class="empty">Le sac est vide.</div>';
+
+  return `<div class="grid two">
+    <div class="stack">
+      <section class="card">
+        <h2>Richesses</h2>
+        <div class="money">
+          <div class="coin co"><div class="disc">CO</div>${bind('money.co', c.money.co, 'number')}<div class="small muted">Couronnes d'or</div></div>
+          <div class="coin pa"><div class="disc">PA</div>${bind('money.pa', c.money.pa, 'number')}<div class="small muted">Pistoles d'argent</div></div>
+          <div class="coin sc"><div class="disc">SC</div>${bind('money.sc', c.money.sc, 'number')}<div class="small muted">Sous de cuivre</div></div>
+        </div>
+        <div class="row" style="margin-top:12px"><button class="btn" style="flex:1" data-act="pay" data-mode="pay">Payer</button><button class="btn green" style="flex:1" data-act="pay" data-mode="gain">Recevoir</button></div>
+        <p class="small muted" style="margin:8px 0 0">1 CO = 20 PA = 240 SC. La monnaie est rendue automatiquement.</p>
+      </section>
+      <section class="card">
+        <h2>Encombrement</h2>
+        <div class="row between"><b style="font-family:var(--font-title);font-size:22px">${enc.total} / ${enc.max}</b><span class="small muted">Max = BF + BE${c.encExtra ? ` + ${c.encExtra}` : ''}</span></div>
+        <div class="bar enc ${ratio > 1 ? 'over' : ratio > .8 ? 'warn' : ''}"><i style="width:${Math.min(100, ratio * 100)}%"></i></div>
+        <div class="stats-row" style="grid-template-columns:repeat(3,1fr)">
+          <div class="stat"><div class="sk">Armes</div><div class="sv">${enc.weapons}</div></div>
+          <div class="stat"><div class="sk">Armure</div><div class="sv">${enc.armour}</div></div>
+          <div class="stat"><div class="sk">Possessions</div><div class="sv">${enc.items}</div></div>
+        </div>
+        ${ratio > 1 ? '<p class="small" style="color:var(--blood);margin:10px 0 0"><b>Surchargé !</b> Mouvement et Agilité sont pénalisés.</p>' : ''}
+      </section>
+      <section class="card">
+        <h2>Armes</h2>${weapons}
+        <div class="add-row"><button class="btn ghost small" data-act="editWeapon" data-i="-1">${icon('plus')} Arme</button></div>
+      </section>
+    </div>
+    <div class="stack">
+      <section class="card">
+        <h2>Armure</h2>${armour}
+        <div class="add-row"><button class="btn ghost small" data-act="editArmour" data-i="-1">${icon('plus')} Pièce d'armure</button></div>
+      </section>
+      <section class="card">
+        <h2>Possessions</h2>${items}
+        <form class="add-row" data-form="quickItem"><input name="item" placeholder="Ajouter un objet (ex. Corde, 10 m)" style="flex:1"><button class="btn small" type="submit">${icon('plus')}</button></form>
+      </section>
+    </div>
+  </div>`;
+}
+
+// ---------- Progression ----------
+function viewProg(c) {
+  const lvl = R.careerLevel(c);
+  const L = c.career.levels[lvl - 1] || {};
+  const p = R.careerProgress(c);
+  const lastUndoable = c.xpLog.find((x) => !x.undone);
+  const changeCost = R.careerChangeCost(p.complete);
+  const hasCareer = !!c.career.name;
+
+  const check = (ok, label) => `<div class="check ${ok ? 'done' : ''}"><span class="ok">${ok ? icon('check') : ''}</span><span>${label}</span></div>`;
+
+  return `<div class="grid two">
+    <div class="stack">
+      <section class="card">
+        <h2>Expérience</h2>
+        <div class="xp-boxes">
+          <div class="stat avail"><div class="sk">Actuelle</div><div class="sv">${avail(c)}</div></div>
+          <div class="stat"><div class="sk">Dépensée</div><div class="sv">${c.xp.spent}</div></div>
+          <div class="stat"><div class="sk">Totale</div><div class="sv">${c.xp.total}</div></div>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <button class="btn green" style="flex:1" data-act="gainXp">${icon('plus')} Gagner de l'XP</button>
+          <button class="btn ${ui.levelUp ? 'ghost' : 'gold'}" style="flex:1" data-act="toggleLevelUp">${icon('star')} ${ui.levelUp ? 'Quitter la progression' : 'Mode progression'}</button>
+        </div>
+      </section>
+      <section class="card">
+        <h2>Carrière <button class="icon-btn h-act" data-act="editCareer" aria-label="Modifier">${icon('edit')}</button></h2>
+        ${hasCareer ? `
+          <div style="text-align:center">
+            <div style="font-family:var(--font-title);font-weight:900;font-size:22px;color:var(--blood)">${esc(c.career.name)}</div>
+            <div>${esc(L.title || '')} — <b>échelon ${lvl}</b>${L.status ? ` · Statut ${esc(L.status)}` : ''}</div>
+            ${c.career.path ? `<div class="small muted">${esc(c.career.path)}</div>` : ''}
+          </div>
+          <h3>Pour terminer l'échelon ${lvl} (${p.need} augmentations)</h3>
+          ${check(p.chars.length && p.charsOk.length === p.chars.length, `Caractéristiques de carrière : ${p.charsOk.length} / ${p.chars.length}${p.chars.length ? ` <span class="muted small">(${p.chars.join(', ')})</span>` : ''}`)}
+          ${check(p.skillsOk.length >= p.skillsNeeded && p.skillsNeeded > 0, `Compétences de carrière : ${p.skillsOk.length} / ${p.skillsNeeded}`)}
+          ${check(p.talentsOk.length >= p.talentsNeeded, `Talent de l'échelon : ${p.talentsOk.length ? esc(p.talentsOk.join(', ')) : `0 / ${p.talentsNeeded}`}`)}
+          <div class="row" style="margin-top:12px">
+            ${lvl < 4 ? `<button class="btn gold" style="flex:1" data-act="nextLevel" ${p.complete && avail(c) >= R.LEVEL_UP_COST ? '' : 'disabled'}>Échelon ${lvl + 1} (${R.LEVEL_UP_COST} XP)</button>` : ''}
+            <button class="btn ghost" style="flex:1" data-act="changeCareer" ${avail(c) >= changeCost ? '' : 'disabled'}>Changer de carrière (${changeCost} XP)</button>
+          </div>
+          ${!p.complete ? `<p class="small muted" style="margin:8px 0 0">Changer de carrière avant d'avoir terminé l'échelon coûte ${R.careerChangeCost(false)} XP.</p>` : ''}
+        ` : `<p class="empty">Aucune carrière renseignée.</p><button class="btn block" data-act="editCareer">Renseigner ma carrière</button>
+             <p class="small muted">Saisis le schéma de carrière de ton livre de règles : l'appli saura alors ce qui est « dans ta carrière » (coût normal) ou « hors carrière » (coût ×2).</p>`}
+        ${c.careerHistory.length ? `<h3>Carrières précédentes</h3>${c.careerHistory.map((h) => `<div class="small">• ${esc(h.name)} — ${esc(h.title || '')} (échelon ${h.level})</div>`).join('')}` : ''}
+      </section>
+      <section class="card">
+        <h2>Coûts en XP</h2>
+        <table class="small" style="width:100%;border-collapse:collapse;text-align:center">
+          <tr class="muted"><th style="text-align:left">Augmentations</th><th>Caract.</th><th>Comp.</th></tr>
+          ${[0, 5, 10, 15, 20, 25, 30].map((n) => `<tr style="border-top:1px dashed var(--line)"><td style="text-align:left">${n + 1} à ${n + 5}</td><td>${R.advanceCost('char', n)}</td><td>${R.advanceCost('skill', n)}</td></tr>`).join('')}
+        </table>
+        <p class="small muted" style="margin:8px 0 0">Talent : 100 XP × nombre de fois déjà pris + 1. Hors carrière : coût doublé.</p>
+      </section>
+    </div>
+    <section class="card">
+      <h2>Historique de l'XP</h2>
+      ${c.xpLog.map((e) => `<div class="hist ${e.undone ? 'undone' : ''}">
+        <span class="hd">${fmtDate(e.date)}</span><span class="hl">${esc(e.label)}</span>
+        <span class="ha ${e.kind}">${e.kind === 'gain' ? '+' : '−'}${e.amount}</span>
+        ${e === lastUndoable ? `<button class="icon-btn" data-act="undo" title="Annuler" aria-label="Annuler">${icon('undo')}</button>` : ''}
+      </div>`).join('') || '<div class="empty">Rien pour l\'instant. Gagne de l\'XP et dépense-le en mode progression !</div>'}
+    </section>
+  </div>`;
+}
+
+// ---------- Carnet ----------
+function viewCarnet(c) {
+  const sp = Object.keys(R.SPECIES);
+  return `<div class="grid two">
+    <div class="stack">
+      <section class="card">
+        <h2>Identité</h2>
+        <div class="fields">
+          <div class="field full"><label>Nom</label>${bind('name', c.name, 'text', 'data-rerender')}</div>
+          <div class="field"><label>Race</label><select data-bind="species" data-rerender>${sp.map((s) => `<option ${s === c.species ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+          <div class="field"><label>Classe</label>${bind('className', c.className)}</div>
+          <div class="field"><label>Âge</label>${bind('age', c.age)}</div>
+          <div class="field"><label>Taille</label>${bind('height', c.height)}</div>
+          <div class="field"><label>Cheveux</label>${bind('hair', c.hair)}</div>
+          <div class="field"><label>Yeux</label>${bind('eyes', c.eyes)}</div>
+        </div>
+      </section>
+      <section class="card">
+        <h2>Ambitions</h2>
+        <div class="field"><label>À court terme</label>${bind('ambitions.short', c.ambitions.short, 'area')}</div>
+        <div class="field"><label>À long terme</label>${bind('ambitions.long', c.ambitions.long, 'area')}</div>
+      </section>
+      <section class="card">
+        <h2>Groupe</h2>
+        <div class="field"><label>Nom du groupe</label>${bind('party.name', c.party.name)}</div>
+        <div class="field"><label>À court terme</label>${bind('party.short', c.party.short)}</div>
+        <div class="field"><label>À long terme</label>${bind('party.long', c.party.long)}</div>
+        <div class="field"><label>Membres</label>${bind('party.members', c.party.members, 'area')}</div>
+      </section>
+    </div>
+    <div class="stack">
+      <section class="card">
+        <h2>Sorts et prières</h2>
+        ${c.spells.map((s, i) => `<div class="list-item" data-act="editSpell" data-i="${i}" role="button"><span class="badge">${esc(s.cn || '–')}</span><span class="li-main"><div class="li-title">${esc(s.name)}</div><div class="li-sub">${[s.range && `Portée ${s.range}`, s.target && `Cible ${s.target}`, s.duration && `Durée ${s.duration}`].filter(Boolean).map(esc).join(' · ')}${s.effect ? ` — ${esc(s.effect)}` : ''}</div></span></div>`).join('') || '<div class="empty">Aucun sort ni prière.</div>'}
+        <div class="add-row"><button class="btn ghost small" data-act="editSpell" data-i="-1">${icon('plus')} Sort / prière</button></div>
+      </section>
+      <section class="card">
+        <h2>Psychologie</h2>${bind('psychology', c.psychology, 'area')}
+        <h3>Corruption et mutations</h3>${bind('mutations', c.mutations, 'area')}
+      </section>
+      <section class="card">
+        <h2>Notes</h2>${bind('notes', c.notes, 'area', 'style="min-height:180px"')}
+      </section>
+    </div>
+  </div>`;
+}
+
+const VIEWS = { fiche: viewFiche, sante: viewSante, sac: viewSac, prog: viewProg, carnet: viewCarnet };
+
+// ================= Actions =================
+const A = {
+  tab(el) { ui.tab = el.dataset.tab; localStorage.setItem('whfrp4.tab', ui.tab); window.scrollTo(0, 0); render(); },
+  toggleLevelUp() { ui.levelUp = !ui.levelUp; if (ui.levelUp && ui.tab !== 'fiche' && ui.tab !== 'prog') ui.tab = 'fiche'; render(); },
+  skillFilter(el) { ui.skillFilter = el.dataset.f; localStorage.setItem('whfrp4.skillFilter', ui.skillFilter); render(); },
+  noop() {},
+
+  // --- Achats ---
+  buyChar(el) {
+    const c = C(); const k = el.dataset.k; const ch = c.chars[k];
+    const inC = R.charInCareer(c, k);
+    const cost = R.advanceCost('char', +ch.advances || 0, inC);
+    if (spend(c, cost, `${k} +1 (→ ${R.charValue(c, k) + 1})${inC ? '' : ' hors carrière'}`, { type: 'char', key: k })) {
+      ch.advances = (+ch.advances || 0) + 1; commit();
+    }
+  },
+  buySkill(el) {
+    const c = C(); const s = c.skills.find((x) => x.id === el.dataset.id);
+    const inC = R.skillInCareer(c, s);
+    const cost = R.advanceCost('skill', +s.advances || 0, inC);
+    if (spend(c, cost, `${R.skillLabel(s)} +1 (→ ${R.skillValue(c, s) + 1})${inC ? '' : ' hors carrière'}`, { type: 'skill', id: s.id })) {
+      s.advances = (+s.advances || 0) + 1; commit();
+    }
+  },
+  buyTalent(el) {
+    const c = C(); const t = c.talents[+el.dataset.i];
+    const inC = R.talentInCareer(c, t.name);
+    const cost = R.talentCost(+t.times || 0, inC);
+    if (spend(c, cost, `Talent ${t.name} (${(+t.times || 0) + 1}e fois)${inC ? '' : ' hors carrière'}`, { type: 'talent', name: t.name })) {
+      t.times = (+t.times || 0) + 1; commit();
+    }
+  },
+  undo() { undoLast(C()); },
+  gainXp() {
+    openDialog({
+      title: 'Gagner de l\'expérience',
+      body: `${F.num('amount', 'Points d\'expérience', '', '', 'required min="1" autofocus')}${F.text('label', 'Raison (facultatif)', '', '', 'placeholder="ex. Séance du 12 novembre"')}`,
+      actions: [cancel, { label: 'Ajouter', cls: 'green', primary: true, onClick: (f) => {
+        const n = Math.round(num(f.amount.value));
+        if (n <= 0) { toast('Indique un nombre positif'); return false; }
+        gainXp(C(), n, f.label.value.trim()); commit(); toast(`+${n} XP`);
+      } }],
+    });
+  },
+
+  // --- Caractéristiques / compétences ---
+  editChar(el) {
+    const c = C(); const k = el.dataset.k; const ch = c.chars[k];
+    openDialog({
+      title: `${k} — ${R.CHARS.find((x) => x.key === k).name}`,
+      body: `<div class="fields">${F.num('initial', 'Initiale', ch.initial)}${F.num('advances', 'Augmentations', ch.advances)}${F.num('modifier', 'Modificateur temporaire', ch.modifier || 0, 'full')}</div>
+        <p class="small muted">Modification libre, sans dépense d'XP (création, correction). Pour dépenser de l'XP, utilise le mode progression.</p>`,
+      actions: [cancel, { label: 'Enregistrer', primary: true, onClick: (f) => {
+        ch.initial = num(f.initial.value); ch.advances = Math.max(0, num(f.advances.value)); ch.modifier = num(f.modifier.value); commit();
+      } }],
+    });
+  },
+  editSkill(el) {
+    const c = C(); const s = c.skills.find((x) => x.id === el.dataset.id);
+    openDialog({
+      title: R.skillLabel(s),
+      body: `<div class="fields">
+        ${s.basic ? '' : F.text('name', 'Compétence', s.name, 'full')}
+        ${F.text('spec', 'Spécialisation', s.spec, '', 'placeholder="ex. Escrime"')}
+        ${F.select('char', 'Caractéristique', s.char, charOpts)}
+        ${F.num('advances', 'Augmentations', s.advances, 'full')}
+      </div><p class="small muted">Valeur : ${R.skillValue(c, s)} = ${s.char} ${R.charValue(c, s.char)} + ${s.advances || 0}. ${R.skillInCareer(c, s) ? '◆ Compétence de carrière.' : ''}</p>`,
+      actions: [
+        ...(s.basic ? [] : [{ label: icon('trash'), cls: 'ghost', onClick: () => { c.skills = c.skills.filter((x) => x !== s); commit(); } }, 'spacer']),
+        cancel,
+        { label: 'Enregistrer', primary: true, onClick: (f) => {
+          if (!s.basic) s.name = f.name.value.trim() || s.name;
+          s.spec = f.spec.value.trim(); s.char = f.char.value; s.advances = Math.max(0, num(f.advances.value)); commit();
+        } },
+      ],
+    });
+  },
+  addSkill() {
+    openDialog({
+      title: 'Nouvelle compétence',
+      body: `<div class="fields">
+        ${F.select('pick', 'Compétence', R.OTHER_SKILLS[0][0], [...R.OTHER_SKILLS.map(([n]) => n), ['__other', 'Autre…']], 'full')}
+        <div class="field full" id="otherName" hidden><label>Nom</label><input name="name"></div>
+        ${F.text('spec', 'Spécialisation', '', '', 'placeholder="ex. Arc, Reikspiel…"')}
+        ${F.select('char', 'Caractéristique', R.OTHER_SKILLS[0][1], charOpts)}
+      </div><p class="small muted">La compétence est ajoutée avec 0 augmentation. ${ui.levelUp ? 'Utilise ensuite le bouton + pour l\'acheter.' : ''}</p>`,
+      onOpen: (f) => {
+        f.pick.onchange = () => {
+          const o = R.OTHER_SKILLS.find(([n]) => n === f.pick.value);
+          f.querySelector('#otherName').hidden = !!o;
+          if (o) f.char.value = o[1];
+        };
+      },
+      actions: [cancel, { label: 'Ajouter', primary: true, onClick: (f) => {
+        const name = f.pick.value === '__other' ? f.name.value.trim() : f.pick.value;
+        if (!name) { toast('Donne un nom à la compétence'); return false; }
+        const c = C();
+        c.skills.push({ id: R.uid(), name, spec: f.spec.value.trim(), char: f.char.value, advances: 0, basic: false });
+        commit(); toast(`${name} ajoutée`);
+      } }],
+    });
+  },
+
+  // --- Talents ---
+  addTalent() { A.editTalent({ dataset: { i: '-1' } }); },
+  editTalent(el) {
+    const c = C(); const i = +el.dataset.i; const t = c.talents[i];
+    const buying = !t && ui.levelUp;
+    const costFor = (name) => R.talentCost(0, R.talentInCareer(c, name));
+    openDialog({
+      title: t ? t.name : (buying ? 'Acheter un talent' : 'Nouveau talent'),
+      body: `${F.text('name', 'Nom', t?.name || '', '', buying ? 'autofocus list="careerTalents"' : 'autofocus')}
+        <datalist id="careerTalents">${c.career.levels.slice(0, R.careerLevel(c)).flatMap((l) => l.talents).map((n) => `<option value="${esc(n)}">`).join('')}</datalist>
+        ${buying ? '<div class="cost-line" id="cost"></div>' : F.num('times', 'Nombre de fois pris', t?.times ?? 1)}
+        ${F.area('desc', 'Description', t?.desc || '', '')}`,
+      onOpen: (f) => {
+        if (!buying) return;
+        const upd = () => {
+          const name = f.name.value.trim();
+          const inC = R.talentInCareer(c, name);
+          const cost = costFor(name);
+          const ok = cost <= avail(c);
+          const box = f.querySelector('#cost');
+          box.className = `cost-line ${ok ? '' : 'bad'}`;
+          box.innerHTML = `Coût : <b>${cost} XP</b> ${inC ? '◆ talent de carrière' : '(hors carrière : coût doublé)'} — disponible : ${avail(c)} XP`;
+        };
+        f.name.oninput = upd; upd();
+      },
+      actions: [
+        ...(t ? [{ label: icon('trash'), cls: 'ghost', onClick: () => { c.talents.splice(i, 1); commit(); } }, 'spacer'] : []),
+        cancel,
+        { label: buying ? 'Acheter' : 'Enregistrer', cls: buying ? 'gold' : '', primary: true, onClick: (f) => {
+          const name = f.name.value.trim();
+          if (!name) { toast('Donne un nom au talent'); return false; }
+          if (buying) {
+            const existing = c.talents.find((x) => R.norm(x.name) === R.norm(name));
+            const inC = R.talentInCareer(c, name);
+            const cost = R.talentCost(existing ? +existing.times : 0, inC);
+            if (!spend(c, cost, `Talent ${name}${inC ? '' : ' hors carrière'}`, { type: 'talent', name })) return false;
+            if (existing) existing.times++;
+            else c.talents.push({ name, times: 1, desc: f.desc.value.trim() });
+          } else if (t) {
+            Object.assign(t, { name, times: Math.max(1, num(f.times.value)), desc: f.desc.value.trim() });
+          } else {
+            c.talents.push({ name, times: Math.max(1, num(f.times.value)), desc: f.desc.value.trim() });
+          }
+          commit();
+        } },
+      ],
+    });
+  },
+
+  // --- Santé ---
+  wound(el) {
+    const c = C(); const max = R.maxWounds(c);
+    const cur = Math.min(c.health.wounds ?? max, max);
+    c.health.wounds = Math.max(0, Math.min(max, cur + +el.dataset.d));
+    if (c.health.wounds === 0 && +el.dataset.d < 0) toast('0 Blessure : chaque coup suivant inflige une blessure critique !');
+    commit();
+  },
+  healFull() { const c = C(); c.health.wounds = R.maxWounds(c); commit(); toast('Blessures restaurées'); },
+  damage() {
+    const c = C(); const ap = R.armourPoints(c); const tb = R.charBonus(c, 'E');
+    openDialog({
+      title: 'Encaisser un coup',
+      body: `${F.num('dmg', 'Dégâts de l\'attaque', '', '', 'autofocus required')}
+        ${F.select('loc', 'Localisation', 'corps', R.LOCATIONS.map((l) => [l.key, `${l.name} (${l.range}) — ${ap[l.key]} PA`]))}
+        <label class="row" style="margin:6px 0"><input type="checkbox" name="reduce" checked style="width:auto"> Soustraire BE (${tb}) + PA</label>
+        <div class="cost-line" id="res"></div>`,
+      onOpen: (f) => {
+        const upd = () => {
+          const d = num(f.dmg.value);
+          const lost = f.reduce.checked ? Math.max(d > 0 ? 1 : 0, d - tb - ap[f.loc.value]) : d;
+          f.querySelector('#res').innerHTML = `Blessures perdues : <b>${lost}</b>`;
+        };
+        f.dmg.oninput = upd; f.loc.onchange = upd; f.reduce.onchange = upd; upd();
+      },
+      actions: [cancel, { label: 'Appliquer', primary: true, onClick: (f) => {
+        const d = num(f.dmg.value);
+        const lost = f.reduce.checked ? Math.max(d > 0 ? 1 : 0, d - tb - ap[f.loc.value]) : d;
+        const max = R.maxWounds(c);
+        const cur = Math.min(c.health.wounds ?? max, max);
+        c.health.wounds = Math.max(0, cur - lost);
+        commit();
+        toast(cur - lost < 0 ? 'Blessure critique ! (Blessures à 0)' : `−${lost} Blessures`);
+      } }],
+    });
+  },
+  woundsExtra() {
+    const c = C();
+    openDialog({
+      title: 'Blessures supplémentaires',
+      body: `${F.num('v', 'Bonus / malus aux Blessures max', c.health.woundsExtra || 0)}<p class="small muted">Pour les effets non calculés automatiquement. « Dur à cuire » est déjà compté s'il figure dans tes talents.</p>`,
+      actions: [cancel, { label: 'Enregistrer', primary: true, onClick: (f) => { c.health.woundsExtra = num(f.v.value); commit(); } }],
+    });
+  },
+  fortune(el) { const c = C(); const n = +el.dataset.n; c.fate.fortune = n < c.fate.fortune ? n : n + 1; commit(); },
+  resolve(el) { const c = C(); const n = +el.dataset.n; c.fate.resolve = n < c.fate.resolve ? n : n + 1; commit(); },
+  newSession() { const c = C(); c.fate.fortune = c.fate.fate; commit(); toast('Points de Chance restaurés'); },
+  editFate() {
+    const c = C(); const f0 = c.fate;
+    openDialog({
+      title: 'Destin & Résilience',
+      body: `<div class="fields">${F.num('fate', 'Destin', f0.fate)}${F.num('fortune', 'Chance actuelle', f0.fortune)}${F.num('resilience', 'Résilience', f0.resilience)}${F.num('resolve', 'Détermination actuelle', f0.resolve)}${F.text('motivation', 'Motivation', f0.motivation, 'full')}</div>`,
+      actions: [cancel, { label: 'Enregistrer', primary: true, onClick: (f) => {
+        Object.assign(c.fate, { fate: num(f.fate.value), fortune: num(f.fortune.value), resilience: num(f.resilience.value), resolve: num(f.resolve.value), motivation: f.motivation.value.trim() });
+        commit();
+      } }],
+    });
+  },
+  adv(el) { const c = C(); c.health.advantage = el.dataset.d === 'reset' ? 0 : Math.max(0, (+c.health.advantage || 0) + +el.dataset.d); commit(); },
+  cond(el) {
+    const c = C(); const name = el.dataset.c; const def = R.CONDITIONS.find((x) => x.name === name);
+    const n = +c.health.conditions[name] || 0;
+    c.health.conditions[name] = def.stack ? n + 1 : 1; commit();
+  },
+  condMinus(el) {
+    const c = C(); const name = el.dataset.c;
+    const n = (+c.health.conditions[name] || 0) - 1;
+    if (n <= 0) delete c.health.conditions[name]; else c.health.conditions[name] = n;
+    commit();
+  },
+  addCrit() {
+    openDialog({
+      title: 'Blessure critique',
+      body: `${F.text('name', 'Nom', '', '', 'autofocus placeholder="ex. Nez cassé"')}${F.select('location', 'Localisation', 'Corps', R.LOCATIONS.map((l) => l.name))}${F.area('desc', 'Effets', '', '')}`,
+      actions: [cancel, { label: 'Ajouter', primary: true, onClick: (f) => {
+        C().health.criticals.push({ name: f.name.value.trim() || 'Blessure critique', location: f.location.value, desc: f.desc.value.trim() }); commit();
+      } }],
+    });
+  },
+  healCrit(el) { const c = C(); confirmDialog('Blessure guérie ?', `Retirer « ${esc(c.health.criticals[+el.dataset.i].name)} » ?`, 'Guérie', () => { c.health.criticals.splice(+el.dataset.i, 1); commit(); }); },
+  step(el) { const c = C(); const p = el.dataset.p; c[p] = Math.max(0, (+c[p] || 0) + +el.dataset.d); commit(); },
+
+  // --- Équipement ---
+  pay(el) {
+    const gain = el.dataset.mode === 'gain';
+    openDialog({
+      title: gain ? 'Recevoir de l\'argent' : 'Payer',
+      body: `<div class="fields four">${F.num('co', 'CO', '')}${F.num('pa', 'PA', '')}${F.num('sc', 'SC', '')}</div>`,
+      actions: [cancel, { label: gain ? 'Recevoir' : 'Payer', cls: gain ? 'green' : '', primary: true, onClick: (f) => {
+        const c = C(); const m = c.money;
+        const amount = num(f.co.value) * 240 + num(f.pa.value) * 12 + num(f.sc.value);
+        if (!amount) return;
+        let total = num(m.co) * 240 + num(m.pa) * 12 + num(m.sc);
+        if (gain) {
+          m.co = num(m.co) + num(f.co.value); m.pa = num(m.pa) + num(f.pa.value); m.sc = num(m.sc) + num(f.sc.value);
+        } else {
+          if (amount > total) { toast('Pas assez d\'argent !'); return false; }
+          total -= amount;
+          m.co = Math.floor(total / 240); m.pa = Math.floor((total % 240) / 12); m.sc = total % 12;
+        }
+        commit();
+      } }],
+    });
+  },
+  editWeapon(el) {
+    editListItem('weapons', +el.dataset.i, 'Arme', [
+      ['name', 'Nom', 'text', 'full'], ['group', 'Groupe', 'text'], ['enc', 'Enc', 'num'], ['reach', 'Portée / Allonge', 'text'],
+      ['damage', 'Dégâts (ex. BF+4)', 'text'], ['qualities', 'Atouts / Défauts', 'text', 'full'],
+    ], { name: '', group: '', enc: 1, reach: 'Moyenne', damage: 'BF+4', qualities: '' });
+  },
+  editArmour(el) {
+    const c = C(); const i = +el.dataset.i; const a = c.armour[i] || { name: '', locations: [], enc: 1, ap: 1, qualities: '', equipped: true };
+    openDialog({
+      title: i >= 0 ? a.name : 'Pièce d\'armure',
+      body: `<div class="fields">${F.text('name', 'Nom', a.name, 'full', 'autofocus')}${F.num('ap', 'PA', a.ap)}${F.num('enc', 'Enc', a.enc)}
+        <div class="field full"><label>Localisations</label><div class="row">${R.LOCATIONS.map((l) => `<label class="chip"><input type="checkbox" name="loc" value="${l.key}" ${a.locations.includes(l.key) ? 'checked' : ''} hidden>${l.name}</label>`).join('')}</div></div>
+        ${F.text('qualities', 'Atouts / Défauts', a.qualities, 'full')}</div>`,
+      actions: [
+        ...(i >= 0 ? [{ label: icon('trash'), cls: 'ghost', onClick: () => { c.armour.splice(i, 1); commit(); } }, 'spacer'] : []),
+        cancel,
+        { label: 'Enregistrer', primary: true, onClick: (f) => {
+          Object.assign(a, { name: f.name.value.trim() || 'Armure', ap: num(f.ap.value), enc: num(f.enc.value), qualities: f.qualities.value.trim(), locations: [...f.querySelectorAll('[name=loc]:checked')].map((x) => x.value) });
+          if (i < 0) c.armour.push(a);
+          commit();
+        } },
+      ],
+    });
+  },
+  toggleEquip(el) { const a = C().armour[+el.dataset.i]; a.equipped = !a.equipped; commit(); },
+  editItem(el) {
+    editListItem('items', +el.dataset.i, 'Objet', [['name', 'Nom', 'text', 'full'], ['qty', 'Quantité', 'num'], ['enc', 'Enc (unité)', 'num'], ['notes', 'Notes', 'text', 'full']], { name: '', qty: 1, enc: 0, notes: '' });
+  },
+  qty(el) {
+    const c = C(); const it = c.items[+el.dataset.i];
+    it.qty = (it.qty ?? 1) + +el.dataset.d;
+    if (it.qty <= 0) { confirmDialog('Retirer l\'objet ?', `Plus de « ${esc(it.name)} » dans le sac.`, 'Retirer', () => { c.items.splice(+el.dataset.i, 1); commit(); }); it.qty = 1; return; }
+    commit();
+  },
+  editSpell(el) {
+    editListItem('spells', +el.dataset.i, 'Sort / prière', [['name', 'Nom', 'text', 'full'], ['cn', 'NI', 'text'], ['range', 'Portée', 'text'], ['target', 'Cible', 'text'], ['duration', 'Durée', 'text'], ['effect', 'Effets', 'area', 'full']], { name: '', cn: '', range: '', target: '', duration: '', effect: '' });
+  },
+
+  // --- Carrière ---
+  editCareer() {
+    const c = C(); const k = c.career;
+    let shown = R.careerLevel(c);
+    const panel = (n) => {
+      const L = k.levels[n - 1];
+      return `<div data-panel="${n}" ${n === shown ? '' : 'hidden'}>
+        <div class="fields">${F.text(`title${n}`, `Titre (échelon ${n})`, L.title)}${F.text(`status${n}`, 'Statut', L.status, '', 'placeholder="ex. Bronze 2"')}</div>
+        <div class="flabel">Caractéristiques augmentables à cet échelon</div>
+        <div class="char-chips" style="margin:6px 0 10px">${R.CHARS.map((ch) => `<label class="chip" style="text-align:center"><input type="checkbox" name="chars${n}" value="${ch.key}" ${L.chars.includes(ch.key) ? 'checked' : ''} hidden>${ch.key}</label>`).join('')}</div>
+        ${F.area(`skills${n}`, 'Compétences (une par ligne)', L.skills.join('\n'))}
+        ${F.area(`talents${n}`, 'Talents (un par ligne)', L.talents.join('\n'))}
+      </div>`;
+    };
+    openDialog({
+      title: 'Schéma de carrière',
+      body: `<div class="fields">${F.text('name', 'Carrière', k.name, 'full', 'placeholder="ex. Répurgateur"')}${F.text('path', 'Schéma de carrière', k.path, 'full')}
+        ${F.select('level', 'Échelon actuel', R.careerLevel(c), [1, 2, 3, 4], 'full')}</div>
+        <div class="level-tabs">${[1, 2, 3, 4].map((n) => `<button type="button" class="chip ${n === shown ? 'on' : ''}" data-lt="${n}">Échelon ${n}</button>`).join('')}</div>
+        ${[1, 2, 3, 4].map(panel).join('')}
+        <p class="small muted">Recopie les éléments marqués pour chaque échelon dans ton livre. Ce qui figure aux échelons inférieurs reste « dans ta carrière ». Pour une compétence au choix, écris par exemple « Langue (au choix) ».</p>`,
+      onOpen: (f) => {
+        f.querySelectorAll('[data-lt]').forEach((b) => b.onclick = () => {
+          shown = +b.dataset.lt;
+          f.querySelectorAll('[data-lt]').forEach((x) => x.classList.toggle('on', x === b));
+          f.querySelectorAll('[data-panel]').forEach((p) => p.hidden = +p.dataset.panel !== shown);
+        });
+      },
+      actions: [cancel, { label: 'Enregistrer', primary: true, onClick: (f) => {
+        k.name = f.name.value.trim(); k.path = f.path.value.trim(); k.level = +f.level.value;
+        const lines = (s) => s.split('\n').map((x) => x.trim()).filter(Boolean);
+        for (let n = 1; n <= 4; n++) {
+          Object.assign(k.levels[n - 1], {
+            title: f[`title${n}`].value.trim(), status: f[`status${n}`].value.trim(),
+            chars: [...f.querySelectorAll(`[name=chars${n}]:checked`)].map((x) => x.value),
+            skills: lines(f[`skills${n}`].value), talents: lines(f[`talents${n}`].value),
+          });
+        }
+        commit();
+      } }],
+    });
+  },
+  nextLevel() {
+    const c = C(); const lvl = R.careerLevel(c);
+    const next = c.career.levels[lvl]?.title || `échelon ${lvl + 1}`;
+    confirmDialog('Échelon suivant', `Devenir <b>${esc(next)}</b> pour ${R.LEVEL_UP_COST} XP ?`, 'Confirmer', () => {
+      if (spend(c, R.LEVEL_UP_COST, `Échelon ${lvl + 1} : ${next}`, { type: 'level', prev: lvl })) { c.career.level = lvl + 1; commit(); toast(`Tu es maintenant ${next} !`); }
+    });
+  },
+  changeCareer() {
+    const c = C(); const p = R.careerProgress(c); const cost = R.careerChangeCost(p.complete);
+    openDialog({
+      title: 'Changer de carrière',
+      body: `${F.text('name', 'Nouvelle carrière', '', '', 'autofocus required')}<div class="cost-line">Coût : <b>${cost} XP</b> ${p.complete ? '(échelon actuel terminé)' : '(échelon actuel non terminé)'}</div><p class="small muted">Tu pourras ensuite saisir le schéma de la nouvelle carrière.</p>`,
+      actions: [cancel, { label: 'Changer', cls: 'gold', primary: true, onClick: (f) => {
+        const name = f.name.value.trim();
+        if (!name) { toast('Indique la nouvelle carrière'); return false; }
+        const prev = JSON.parse(JSON.stringify(c.career));
+        if (!spend(c, cost, `Nouvelle carrière : ${name}`, { type: 'career', prevCareer: prev })) return false;
+        c.careerHistory.push({ name: prev.name, level: R.careerLevel(c), title: prev.levels[R.careerLevel(c) - 1]?.title });
+        c.career = { name, level: 1, path: '', levels: [1, 2, 3, 4].map(() => ({ title: '', status: '', chars: [], skills: [], talents: [] })) };
+        commit();
+        setTimeout(() => A.editCareer(), 50);
+      } }],
+    });
+  },
+
+  // --- Personnages & menu ---
+  characters() {
+    const cur = C();
+    openDialog({
+      title: 'Personnages',
+      body: `<div class="char-list">${store.list().map((c) => `<button type="button" class="list-item ${c.id === cur.id ? 'current' : ''}" data-pick="${c.id}"><span class="crest" style="width:36px;height:36px;font-size:15px">${esc((c.name || '?').charAt(0).toUpperCase())}</span><span class="li-main"><div class="li-title">${esc(c.name)}</div><div class="li-sub">${esc([c.species, c.career.name].filter(Boolean).join(' · '))}</div></span>${c.id === cur.id ? icon('check') : ''}</button>`).join('')}</div>`,
+      onOpen: (f) => f.querySelectorAll('[data-pick]').forEach((b) => b.onclick = () => { store.select(b.dataset.pick); dlg.close(); ui.levelUp = false; render(); }),
+      actions: [{ label: 'Fermer', cls: 'ghost' }, { label: `${icon('plus')} Nouveau`, onClick: () => { setTimeout(A.newCharacter, 50); } }],
+    });
+  },
+  newCharacter() {
+    openDialog({
+      title: 'Nouveau personnage',
+      body: `${F.text('name', 'Nom', '', '', 'autofocus required')}${F.select('species', 'Race', 'Humain', Object.keys(R.SPECIES))}<p class="small muted">Saisis ensuite tes caractéristiques initiales (onglet Fiche) et ta carrière (onglet Progression).</p>`,
+      actions: [cancel, { label: 'Créer', primary: true, onClick: (f) => {
+        const c = R.newCharacter(f.name.value.trim() || 'Nouveau personnage', f.species.value);
+        store.add(c); ui.tab = 'fiche'; render();
+      } }],
+    });
+  },
+  menu() {
+    const st = store.status; const m = store.meta;
+    openDialog({
+      title: 'Menu',
+      body: `<h3>${icon('cloud')} Sauvegarde en ligne</h3>
+        <p class="small">État : <b>${esc(st.message || 'inactif')}</b>${m.lastSync ? `<br>Dernière synchro : ${new Date(m.lastSync).toLocaleString('fr-FR')}` : ''}${m.dirty ? '<br>Des modifications attendent d\'être envoyées.' : ''}</p>
+        <details ${store.configured ? '' : 'open'} style="margin-bottom:10px"><summary class="small muted" style="cursor:pointer">Configuration Firebase</summary>
+          <div class="field" style="margin-top:8px"><textarea name="fbconfig" placeholder="Colle ici le bloc firebaseConfig = { apiKey: ..., projectId: ... } (voir README)" style="font-family:monospace;font-size:13px">${m.firebase ? esc(JSON.stringify(m.firebase, null, 2)) : ''}</textarea></div>
+        </details>
+        <div class="row">
+          <button type="button" class="btn small" data-m="connect">${store.userEmail ? 'Synchroniser maintenant' : 'Se connecter avec Google'}</button>
+          ${store.userEmail ? '<button type="button" class="btn ghost small" data-m="disconnect">Se déconnecter</button>' : ''}
+        </div>
+        <h3>Sauvegarde</h3>
+        <div class="row">
+          <button type="button" class="btn ghost small" data-m="export">${icon('down')} Exporter (JSON)</button>
+          <button type="button" class="btn ghost small" data-m="import">${icon('upload')} Importer</button>
+          <input type="file" accept=".json,application/json" hidden id="importFile">
+        </div>
+        <h3>Personnage</h3>
+        <div class="row">
+          <button type="button" class="btn ghost small" data-m="duplicate">Dupliquer</button>
+          <button type="button" class="btn ghost small" style="color:var(--blood)" data-m="delete">${icon('trash')} Supprimer « ${esc(C().name)} »</button>
+        </div>`,
+      onOpen: (f) => {
+        const saveCfg = () => {
+          const before = JSON.stringify(m.firebase);
+          try { store.setFirebaseConfig(f.fbconfig.value); } catch (e) { toast(`Configuration invalide : ${e.message}`); return false; }
+          if (before !== JSON.stringify(m.firebase) && before !== 'null') { toast('Configuration changée : l\'appli redémarre'); setTimeout(() => location.reload(), 800); return false; }
+          return true;
+        };
+        f.querySelector('[data-m=connect]').onclick = async () => {
+          if (!saveCfg()) return;
+          dlg.close(); await store.sync({ interactive: true }); toast(store.status.message);
+        };
+        f.querySelector('[data-m=disconnect]')?.addEventListener('click', async () => { dlg.close(); await store.disconnect(); render(); });
+        f.querySelector('[data-m=export]').onclick = () => {
+          const blob = new Blob([store.exportAll()], { type: 'application/json' });
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob); a.download = `wfrp-personnages-${new Date().toISOString().slice(0, 10)}.json`; a.click();
+          setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+        };
+        const file = f.querySelector('#importFile');
+        f.querySelector('[data-m=import]').onclick = () => file.click();
+        file.onchange = async () => {
+          try { const n = store.importAll(await file.files[0].text()); dlg.close(); render(); toast(`${n} personnage(s) importé(s)`); } catch { toast('Fichier invalide'); }
+        };
+        f.querySelector('[data-m=duplicate]').onclick = () => {
+          const copy = JSON.parse(JSON.stringify(C())); copy.id = R.uid(); copy.name += ' (copie)'; copy.updatedAt = Date.now();
+          store.add(copy); dlg.close(); render(); toast('Personnage dupliqué');
+        };
+        f.querySelector('[data-m=delete]').onclick = () => {
+          const c = C();
+          setTimeout(() => confirmDialog('Supprimer le personnage ?', `« ${esc(c.name)} » sera supprimé sur tous tes appareils. Pense à l'exporter avant si tu veux le garder.`, 'Supprimer', () => { store.remove(c.id); render(); }), 50);
+          dlg.close();
+        };
+      },
+      actions: [{ label: 'Fermer', cls: 'ghost' }],
+    });
+  },
+  async syncNow() {
+    if (!store.configured) { A.menu(); toast('Configure d\'abord la sauvegarde en ligne'); return; }
+    await store.sync({ interactive: true });
+    toast(store.status.message);
+  },
+};
+
+function editListItem(list, i, title, fields, defaults) {
+  const c = C(); const item = c[list][i] || { ...defaults };
+  openDialog({
+    title: i >= 0 ? item.name || title : title,
+    body: `<div class="fields">${fields.map(([k, label, type, cls], idx) => {
+      const extra = idx === 0 ? 'autofocus' : '';
+      if (type === 'num') return F.num(k, label, item[k], cls, extra);
+      if (type === 'area') return F.area(k, label, item[k], cls);
+      return F.text(k, label, item[k], cls, extra);
+    }).join('')}</div>`,
+    actions: [
+      ...(i >= 0 ? [{ label: icon('trash'), cls: 'ghost', onClick: () => { c[list].splice(i, 1); commit(); } }, 'spacer'] : []),
+      cancel,
+      { label: 'Enregistrer', primary: true, onClick: (f) => {
+        for (const [k, , type] of fields) item[k] = type === 'num' ? num(f[k].value) : f[k].value.trim();
+        if (!item.name) item.name = title;
+        if (i < 0) c[list].push(item);
+        commit();
+      } },
+    ],
+  });
+}
+
+// ================= Événements =================
+$app.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-act]');
+  if (!el || el.disabled) return;
+  e.stopPropagation();
+  A[el.dataset.act]?.(el, e);
+});
+
+// Champs liés : enregistrement à la frappe, rafraîchissement à la validation
+$app.addEventListener('input', (e) => {
+  const el = e.target;
+  if (!el.dataset.bind) return;
+  setPath(C(), el.dataset.bind, el.hasAttribute('data-num') ? num(el.value) : el.value);
+  commit(false);
+});
+$app.addEventListener('change', (e) => {
+  const el = e.target;
+  if (!el.dataset.bind) return;
+  setPath(C(), el.dataset.bind, el.hasAttribute('data-num') ? num(el.value) : el.value);
+  commit(el.hasAttribute('data-rerender') || el.hasAttribute('data-num'));
+});
+$app.addEventListener('submit', (e) => {
+  const form = e.target;
+  if (form.dataset.form !== 'quickItem') return;
+  e.preventDefault();
+  const name = form.item.value.trim();
+  if (!name) return;
+  C().items.push({ name, qty: 1, enc: 0, notes: '' });
+  commit();
+});
+
+store.onStatus((st, info) => {
+  const btn = document.getElementById('syncBtn');
+  if (btn) { btn.className = `icon-btn sync-${st.state}`; btn.title = st.message; }
+  const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
+  if (info?.reloaded && !typing && !dlg.open) render();
+});
+
+render();
+store.sync();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
