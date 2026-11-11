@@ -391,11 +391,40 @@ function viewSante(c) {
   <div class="combat-end"><button class="btn ghost" data-act="adv" data-d="reset">Fin du combat · Avantage à 0</button><span class="small muted">+10 par point d'Avantage aux tests de combat (ajouté automatiquement aux jets).</span></div>`;
 }
 
+// Bulle d'effet d'une qualité, ouverte au toucher (les infobulles au survol n'existent pas sur tablette)
+function showQualityPopover(anchor, q) {
+  document.getElementById('qPop')?.remove();
+  const pop = document.createElement('div');
+  pop.id = 'qPop';
+  pop.className = `q-pop ${q.kind === 'atout' ? 'pro' : 'con'}`;
+  pop.innerHTML = `<b>${esc(q.name)}</b> <span class="small">(${q.kind})${q.auto ? ' · ⚙ appliqué aux jets' : ''}</span><div>${esc(q.desc)}</div>`;
+  document.body.appendChild(pop);
+  const r = anchor.getBoundingClientRect();
+  const w = Math.min(300, window.innerWidth - 24);
+  pop.style.width = `${w}px`;
+  pop.style.left = `${Math.max(12, Math.min(r.left + r.width / 2 - w / 2, window.innerWidth - w - 12))}px`;
+  const below = r.bottom + 8 + pop.offsetHeight < window.innerHeight - 70;
+  pop.style.top = `${below ? r.bottom + 8 : r.top - pop.offsetHeight - 8}px`;
+  setTimeout(() => document.addEventListener('pointerdown', () => pop.remove(), { once: true }), 0);
+}
+
+// Dans les fenêtres d'édition : l'effet de la pastille cochée ou décochée s'affiche sous les pastilles
+function wireQualityHelp(f, list) {
+  const box = f.querySelector('.q-help');
+  f.querySelectorAll('.q-chip input[type=checkbox]').forEach((cb) => cb.addEventListener('change', () => {
+    const q = list.find((x) => x.name === cb.value);
+    if (!q || !box) return;
+    box.className = `q-help ${q.kind === 'atout' ? 'pro' : 'con'}`;
+    box.innerHTML = `<b>${esc(q.name)}</b>${q.auto ? ' ⚙' : ''} : ${esc(q.desc)}`;
+  }));
+}
+
 // Pastilles vertes (atouts) et rouges (défauts) d'une arme
 function qualityTags(w, list) {
   const { known, other } = R.parseQualities(w.qualities, list);
   if (!known.length && !other.length) return '';
-  return `<div class="q-tags">${known.map(({ q, rating }) => `<span class="q-tag ${q.kind === 'atout' ? 'pro' : 'con'}" title="${esc(q.desc)}">${esc(q.name)}${rating ? ` ${rating}` : ''}</span>`).join('')}${other.map((o) => `<span class="q-tag">${esc(o)}</span>`).join('')}</div>`;
+  const kind = list === R.ARMOUR_QUALITIES ? 'a' : 'w';
+  return `<div class="q-tags">${known.map(({ q, rating }) => `<span class="q-tag ${q.kind === 'atout' ? 'pro' : 'con'}" data-act="qInfo" data-q="${esc(q.name)}" data-l="${kind}" role="button">${esc(q.name)}${rating ? ` ${rating}` : ''}</span>`).join('')}${other.map((o) => `<span class="q-tag">${esc(o)}</span>`).join('')}</div>`;
 }
 
 const stepper = (path, val) => `<span class="step"><button data-act="step" data-p="${path}" data-d="-1">−</button><span class="val">${+val || 0}</span><button data-act="step" data-p="${path}" data-d="1">+</button></span>`;
@@ -907,6 +936,11 @@ const A = {
       } }],
     });
   },
+  qInfo(el) {
+    const list = el.dataset.l === 'a' ? R.ARMOUR_QUALITIES : R.WEAPON_QUALITIES;
+    const q = list.find((x) => x.name === el.dataset.q);
+    if (q) showQualityPopover(el, q);
+  },
   fortuneStep(el) {
     const c = C(); const max = R.maxFortune(c);
     const next = Math.max(0, Math.min(max, (+c.fate.fortune || 0) + +el.dataset.d));
@@ -1052,8 +1086,10 @@ const A = {
         ${F.text('reach', 'Allonge / Portée', w.reach, '', 'placeholder="Moyenne, ou 50"')}${F.text('damage', 'Dégâts', w.damage, '', 'placeholder="BF+4"')}</div>
         <div class="flabel">Atouts</div><div class="q-chips">${pros.map(chip).join('')}</div>
         <div class="flabel" style="margin-top:8px">Défauts</div><div class="q-chips">${cons.map(chip).join('')}</div>
+        <div class="q-help">Touche une pastille pour la cocher et voir son effet.</div>
         ${F.text('other', 'Autres atouts / défauts', parsed.other.join(', '), 'full', 'placeholder="séparés par des virgules"')}
-        <p class="small muted" style="margin:0">⚙ = effet appliqué automatiquement par le lanceur de dés. Les autres s'affichent en rappel. Maintiens le doigt sur une pastille pour voir son effet.</p>`,
+        <p class="small muted" style="margin:0">⚙ = effet appliqué automatiquement par le lanceur de dés. Les autres s'affichent en rappel.</p>`,
+      onOpen: (f) => wireQualityHelp(f, R.WEAPON_QUALITIES),
       actions: [
         ...(i >= 0 ? [{ label: icon('trash'), cls: 'ghost', onClick: () => { c.weapons.splice(i, 1); commit(); } }, 'spacer'] : []),
         cancel,
@@ -1083,7 +1119,9 @@ const A = {
         </div>
         <div class="flabel">Atouts et défauts</div>
         <div class="q-chips">${R.ARMOUR_QUALITIES.map((q) => `<label class="q-chip ${q.kind === 'atout' ? 'pro' : 'con'}" title="${esc(q.desc)}"><input type="checkbox" name="aq" value="${esc(q.name)}" ${parsedA.known.some((k) => k.q === q) ? 'checked' : ''} hidden>${esc(q.name)}</label>`).join('')}</div>
+        <div class="q-help">Touche une pastille pour la cocher et voir son effet.</div>
         ${F.text('other', 'Autres', parsedA.other.join(', '), 'full', 'placeholder="séparés par des virgules"')}`,
+      onOpen: (f) => wireQualityHelp(f, R.ARMOUR_QUALITIES),
       actions: [
         ...(i >= 0 ? [{ label: icon('trash'), cls: 'ghost', onClick: () => { c.armour.splice(i, 1); commit(); } }, 'spacer'] : []),
         cancel,
