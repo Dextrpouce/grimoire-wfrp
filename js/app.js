@@ -200,10 +200,14 @@ function viewFiche(c) {
 
   const talents = c.talents.map((t, i) => {
     const inC = R.talentInCareer(c, t.name);
+    const info = store.findTalent(t.name);
+    const max = R.talentMax(c, info?.max);
+    const atMax = max != null && (+t.times || 0) >= max;
+    const desc = t.desc || info?.desc || '';
     return `<div class="list-item" data-act="editTalent" data-i="${i}" role="button">
-      <span class="badge ${inC ? 'gold' : 'soft'}">${t.times}</span>
-      <span class="li-main"><div class="li-title">${esc(t.name)}${inC ? ' <span class="career-mark" style="color:var(--gold);font-size:10px">◆</span>' : ''}</div>${t.desc ? `<div class="li-sub">${esc(t.desc)}</div>` : ''}</span>
-      ${ui.levelUp ? plusBtn(c, R.talentCost(+t.times || 0, inC), 'buyTalent', `data-i="${i}"`, inC) : ''}
+      <span class="badge ${inC ? 'gold' : 'soft'}" title="${max != null ? `Pris ${t.times} fois sur ${max} maximum` : ''}">${t.times}${max != null ? `<small style="opacity:.7">/${max}</small>` : ''}</span>
+      <span class="li-main"><div class="li-title">${esc(t.name)}${inC ? ' <span class="career-mark" style="color:var(--gold);font-size:10px">◆</span>' : ''}</div>${desc ? `<div class="li-sub">${esc(desc)}</div>` : ''}${info?.tests && info.tests !== 'Aucun' ? `<div class="small muted">Tests : ${esc(info.tests)}</div>` : ''}</span>
+      ${ui.levelUp ? (atMax ? '<span class="cost-na">max</span>' : plusBtn(c, R.talentCost(+t.times || 0, inC), 'buyTalent', `data-i="${i}"`, inC)) : ''}
     </div>`;
   }).join('') || '<div class="empty">Aucun talent pour l\'instant.</div>';
 
@@ -438,6 +442,14 @@ function viewProg(c) {
         <p class="small muted" style="margin:8px 0 0">Les schémas saisis par toi et tes camarades. Coche « Enregistrer dans la bibliothèque » en modifiant une carrière pour la partager.${store.userUid ? '' : ' <b>Connecte-toi (nuage) pour voir ceux des autres.</b>'}</p>
       </section>
       <section class="card">
+        <h2>Bibliothèque de talents</h2>
+        ${store.talents().length ? `<input type="search" id="talentSearch" placeholder="Rechercher un talent…" style="margin-bottom:8px">
+          <div id="talentLib">${store.talents().map((t) => `<div class="list-item" data-act="openTalentInfo" data-id="${esc(t.id)}" data-search="${esc(R.norm([t.name, ...(t.aliases || []), t.desc].join(' ')))}" role="button">
+            <span class="li-main"><div class="li-title">${esc(t.name)}</div><div class="li-sub">${esc(t.desc || '')}</div></span>
+            <span class="badge soft" title="Maximum">${esc(maxShort(t.max))}</span></div>`).join('')}</div>`
+          : '<div class="empty">Aucun talent. Importe un fichier de talents via Menu ⋮ > Importer.</div>'}
+      </section>
+      <section class="card">
         <h2>Coûts en XP</h2>
         <table class="small" style="width:100%;border-collapse:collapse;text-align:center">
           <tr class="muted"><th style="text-align:left">Augmentations</th><th>Caract.</th><th>Comp.</th></tr>
@@ -456,6 +468,12 @@ function viewProg(c) {
     </section>
   </div>`;
 }
+
+// « Bonus de FM » → « BFM », « 2 » → « 2 »
+const maxShort = (m) => {
+  const k = String(m || '').match(/bonus\s+de\s+([A-Za-z]+)/i);
+  return k ? `B${k[1].replace(/^DXT$/i, 'Dex')}` : (m || '—');
+};
 
 function libraryList() {
   const all = store.careers();
@@ -545,6 +563,8 @@ const A = {
   },
   buyTalent(el) {
     const c = C(); const t = c.talents[+el.dataset.i];
+    const max = R.talentMax(c, store.findTalent(t.name)?.max);
+    if (max != null && (+t.times || 0) >= max) { toast(`Maximum atteint pour ${t.name} (${max})`); return; }
     const inC = R.talentInCareer(c, t.name);
     const cost = R.talentCost(+t.times || 0, inC);
     if (spend(c, cost, `Talent ${t.name} (${(+t.times || 0) + 1}e fois)${inC ? '' : ' hors carrière'}`, { type: 'talent', name: t.name })) {
@@ -630,20 +650,33 @@ const A = {
     const costFor = (name) => R.talentCost(0, R.talentInCareer(c, name));
     openDialog({
       title: t ? t.name : (buying ? 'Acheter un talent' : 'Nouveau talent'),
-      body: `${F.text('name', 'Nom', t?.name || '', '', buying ? 'autofocus list="careerTalents"' : 'autofocus')}
-        <datalist id="careerTalents">${c.career.levels.slice(0, R.careerLevel(c)).flatMap((l) => l.talents).map((n) => `<option value="${esc(n)}">`).join('')}</datalist>
+      body: `${F.text('name', 'Nom', t?.name || '', '', 'autofocus list="talentNames" autocomplete="off"')}
+        <datalist id="talentNames">${[...new Set([
+          ...c.career.levels.slice(0, R.careerLevel(c)).flatMap((l) => l.talents),
+          ...store.talents().map((x) => x.name),
+        ])].map((n) => `<option value="${esc(n)}">`).join('')}</datalist>
+        <div id="talentInfo"></div>
         ${buying ? '<div class="cost-line" id="cost"></div>' : F.num('times', 'Nombre de fois pris', t?.times ?? 1)}
         ${F.area('desc', 'Description', t?.desc || '', '')}`,
       onOpen: (f) => {
-        if (!buying) return;
+        let autoDesc = '';
         const upd = () => {
           const name = f.name.value.trim();
+          const info = store.findTalent(name);
+          const max = R.talentMax(c, info?.max);
+          const have = c.talents.find((x) => R.norm(x.name) === R.norm(name));
+          f.querySelector('#talentInfo').innerHTML = info
+            ? `<p class="small" style="margin:0 0 10px">📚 <b>Max :</b> ${esc(info.max || '—')}${max != null ? ` (= ${max} pour toi)` : ''} · <b>Tests :</b> ${esc(info.tests || '—')}${info.sl ? ' · +1 DR' : ''}</p>`
+            : '';
+          // Remplit la description depuis la bibliothèque si l'utilisateur ne l'a pas écrite lui-même
+          if (info?.desc && (!f.desc.value.trim() || f.desc.value === autoDesc)) { f.desc.value = info.desc; autoDesc = info.desc; }
+          if (!buying) return;
           const inC = R.talentInCareer(c, name);
-          const cost = costFor(name);
-          const ok = cost <= avail(c);
+          const cost = R.talentCost(have ? +have.times : 0, inC);
+          const atMax = max != null && have && +have.times >= max;
           const box = f.querySelector('#cost');
-          box.className = `cost-line ${ok ? '' : 'bad'}`;
-          box.innerHTML = `Coût : <b>${cost} XP</b> ${inC ? '◆ talent de carrière' : '(hors carrière : coût doublé)'} — disponible : ${avail(c)} XP`;
+          box.className = `cost-line ${cost <= avail(c) && !atMax ? '' : 'bad'}`;
+          box.innerHTML = atMax ? `Maximum atteint (${max})` : `Coût : <b>${cost} XP</b> ${inC ? '◆ talent de carrière' : '(hors carrière : coût doublé)'} — disponible : ${avail(c)} XP`;
         };
         f.name.oninput = upd; upd();
       },
@@ -651,10 +684,15 @@ const A = {
         ...(t ? [{ label: icon('trash'), cls: 'ghost', onClick: () => { c.talents.splice(i, 1); commit(); } }, 'spacer'] : []),
         cancel,
         { label: buying ? 'Acheter' : 'Enregistrer', cls: buying ? 'gold' : '', primary: true, onClick: (f) => {
-          const name = f.name.value.trim();
+          let name = f.name.value.trim();
           if (!name) { toast('Donne un nom au talent'); return false; }
+          // Reprend l'orthographe exacte de la bibliothèque (« tir précis » → « Tir Précis »)
+          const libT = store.findTalent(name);
+          if (libT && R.norm(name) === R.norm(libT.name)) name = libT.name;
           if (buying) {
             const existing = c.talents.find((x) => R.norm(x.name) === R.norm(name));
+            const max = R.talentMax(c, store.findTalent(name)?.max);
+            if (max != null && existing && +existing.times >= max) { toast(`Maximum atteint (${max})`); return false; }
             const inC = R.talentInCareer(c, name);
             const cost = R.talentCost(existing ? +existing.times : 0, inC);
             if (!spend(c, cost, `Talent ${name}${inC ? '' : ' hors carrière'}`, { type: 'talent', name })) return false;
@@ -868,6 +906,28 @@ const A = {
       } }],
     });
   },
+  openTalentInfo(el) {
+    const t = store.talents().find((x) => x.id === el.dataset.id);
+    if (!t) return;
+    const c = C();
+    const max = R.talentMax(c, t.max);
+    const have = c.talents.find((x) => store.findTalent(x.name)?.id === t.id);
+    openDialog({
+      title: t.name,
+      body: `${t.aliases?.length ? `<p class="small muted" style="margin-top:0">${esc(t.aliases.join(' · '))}</p>` : ''}
+        <p class="small"><b>Max :</b> ${esc(t.max || '—')}${max != null ? ` (= ${max} pour ${esc(c.name)})` : ''}<br><b>Tests associés :</b> ${esc(t.tests || '—')}${t.sl ? '<br><b>+1 DR</b> aux tests associés' : ''}</p>
+        <p>${esc(t.desc || '')}</p>
+        ${have ? `<p class="small muted">${esc(c.name)} a ce talent (${have.times} fois).</p>` : ''}`,
+      actions: [
+        ...(store.canEditCareer(t) ? [{ label: icon('trash'), cls: 'ghost', onClick: () => { store.removeTalent(t.id); render(); } }, 'spacer'] : []),
+        { label: 'Fermer', cls: 'ghost' },
+        ...(!have ? [{ label: ui.levelUp ? 'Acheter' : 'Ajouter à mon personnage', primary: true, onClick: () => {
+          if (ui.levelUp) { setTimeout(() => { A.editTalent({ dataset: { i: '-1' } }); const f = dlg.querySelector('form'); f.name.value = t.name; f.name.dispatchEvent(new Event('input')); }, 50); return; }
+          c.talents.push({ name: t.name, times: 1, desc: '' }); commit(); toast(`${t.name} ajouté`);
+        } }] : []),
+      ],
+    });
+  },
   openCareerTemplate(el) {
     const t = store.careers().find((x) => x.id === el.dataset.id);
     if (!t) return;
@@ -985,7 +1045,9 @@ const A = {
           try {
             const n = store.importAll(await file.files[0].text());
             dlg.close(); render();
-            toast(n?.careers != null ? `${n.careers} carrière(s) ajoutée(s) à la bibliothèque` : `${n} personnage(s) importé(s)`);
+            toast(n?.careers != null ? `${n.careers} carrière(s) ajoutée(s) à la bibliothèque`
+              : n?.talents != null ? `${n.talents} talent(s) ajouté(s) à la bibliothèque`
+              : `${n} personnage(s) importé(s)`);
           } catch { toast('Fichier invalide'); }
         };
         f.querySelector('[data-m=duplicate]').onclick = () => {
@@ -1098,6 +1160,11 @@ $app.addEventListener('click', (e) => {
 // Champs liés : enregistrement à la frappe, rafraîchissement à la validation
 $app.addEventListener('input', (e) => {
   const el = e.target;
+  if (el.id === 'talentSearch') {
+    const q = R.norm(el.value);
+    document.querySelectorAll('#talentLib [data-search]').forEach((row) => { row.hidden = !!q && !row.dataset.search.includes(q); });
+    return;
+  }
   if (!el.dataset.bind) return;
   setPath(C(), el.dataset.bind, el.hasAttribute('data-num') ? num(el.value) : el.value);
   commit(false);

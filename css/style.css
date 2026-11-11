@@ -362,3 +362,5 @@ dialog h2 { font-size: 16px; }
 label.chip { cursor: pointer; user-select: none; }
 label.chip:has(input:checked) { background: var(--blood); color: #fbe9d3; border-color: var(--blood); }
 [hidden] { display: none !important; }
+.badge small { font-size: 10px; }
+.badge { white-space: nowrap; }

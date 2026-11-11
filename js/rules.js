@@ -114,12 +114,25 @@ export function talentTimes(c, name) {
   return t ? +t.times || 0 : 0;
 }
 
+const HARDY_NAMES = ['Dur à cuire', 'Hardy', 'Inflexible'];
+
+// Maximum d'un talent : « 2 », « Bonus de I », « Bonus de DXT »… (null = pas de limite connue)
+const MAX_KEYS = { CC: 'CC', CT: 'CT', F: 'F', E: 'E', I: 'I', AG: 'Ag', DEX: 'Dex', DXT: 'Dex', INT: 'Int', FM: 'FM', SOC: 'Soc' };
+export function talentMax(c, spec) {
+  const s = String(spec ?? '').trim();
+  if (!s) return null;
+  if (/^\d+$/.test(s)) return +s;
+  const m = s.match(/bonus\s+de\s+([A-Za-z]+)/i);
+  const k = m && MAX_KEYS[m[1].toUpperCase()];
+  return k ? Math.max(1, charBonus(c, k)) : null;
+}
+
 export function woundsBreakdown(c) {
   const sp = SPECIES[c.species] || SPECIES['Humain'];
   const sb = sp.sb ? charBonus(c, 'F') : 0;
   const tb2 = charBonus(c, 'E') * 2;
   const wpb = charBonus(c, 'FM');
-  const hardy = talentTimes(c, 'Dur à cuire') * charBonus(c, 'E');
+  const hardy = HARDY_NAMES.reduce((n, name) => n + talentTimes(c, name), 0) * charBonus(c, 'E');
   const extra = +c.health.woundsExtra || 0;
   return { sb, tb2, wpb, hardy, extra, total: sb + tb2 + wpb + hardy + extra };
 }
