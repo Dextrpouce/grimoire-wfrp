@@ -301,6 +301,8 @@ function viewSante(c) {
     return /melee|corps a corps|tir\b|projectile|esquive|initiative|combat|degat|attaque|charge|parade|bouclier|avantage|frenesie/.test(txt);
   });
 
+  const activeConds = R.CONDITIONS.filter((cd) => +c.health.conditions[cd.name] > 0)
+    .map((cd) => `${cd.name}${cd.stack && +c.health.conditions[cd.name] > 1 ? ` ${c.health.conditions[cd.name]}` : ''}`);
   return `<div class="combat-bar">
       <div class="cb-item"><span class="cb-k">Blessures</span>
         <span class="cb-ctrl"><button data-act="wound" data-d="-1">−</button><b class="${cur <= 0 ? 'danger' : ''}">${cur}<small>/${max}</small></b><button data-act="wound" data-d="1">+</button></span></div>
@@ -308,8 +310,21 @@ function viewSante(c) {
         <span class="cb-ctrl"><button data-act="adv" data-d="-1">−</button><b>${adv}</b><button data-act="adv" data-d="1">+</button></span></div>
       <div class="cb-item" data-act="fortuneSpend" role="button" title="Toucher pour dépenser 1 point de Chance"><span class="cb-k">Chance</span>
         <span class="cb-ctrl"><b>${+f.fortune || 0}<small>/${R.maxFortune(c)}</small></b></span></div>
+      ${activeConds.length ? `<div class="cb-conds" data-act="scrollConds" role="button">${activeConds.map((x) => `<span class="cb-cond">${esc(x)}</span>`).join('')}</div>` : ''}
     </div>
     <div class="grid three combat">
+    <div class="stack">
+      <section class="card">
+        <h2>Attaques</h2>
+        ${attacks}
+        <p class="small muted" style="margin:8px 0 0">Touche une attaque pour lancer les dés. Gère tes armes dans l'onglet Sac.</p>
+      </section>
+      <section class="card">
+        <h2>Défense</h2>
+        ${defense}
+        <div class="add-row"><button class="btn ghost small" data-act="rollFree">${icon('die')} Autre test</button></div>
+      </section>
+    </div>
     <div class="stack">
       <section class="card wounds">
         <h2>Blessures</h2>
@@ -331,45 +346,17 @@ function viewSante(c) {
           <div class="stat" data-act="woundsExtra" role="button"><div class="sk">Autre +</div><div class="sv">${wb.extra}</div></div>
         </div>
       </section>
-      <section class="card">
-        <h2>Avantage</h2>
-        <div class="row between">
-          <button class="btn" style="width:56px;font-size:22px" data-act="adv" data-d="-1">−</button>
-          <span class="adv-val">${adv}</span>
-          <button class="btn green" style="width:56px;font-size:22px" data-act="adv" data-d="1">+</button>
-          <button class="btn ghost small" data-act="adv" data-d="reset">Fin du combat</button>
-        </div>
-        <p class="small muted" style="margin:8px 0 0">+10 par point d'Avantage aux tests de combat (ajouté automatiquement aux jets).</p>
+      <section class="card" id="condsCard">
+        <h2>États</h2>
+        <div class="conds">${R.CONDITIONS.map((cd) => {
+          const n = +c.health.conditions[cd.name] || 0;
+          return `<button class="cond ${n ? 'on' : ''}" data-act="cond" data-c="${esc(cd.name)}"><span class="cn">${cd.name}</span>${n ? `${cd.stack ? `<span class="badge gold">${n}</span>` : ''}<span class="cminus" data-act="condMinus" data-c="${esc(cd.name)}">−</span>` : ''}</button>`;
+        }).join('')}</div>
       </section>
       <section class="card">
-        <h2>Destin & Résilience</h2>
-        <div class="fate-grid">
-          <div class="fate-box"><div class="fk">Destin</div><div class="pips">${pips(+f.fate || 0, +f.fate || 0, 'noop')}</div></div>
-          <div class="fate-box"><div class="fk">Chance${R.luckBonus(c) ? ' <span class="tal" title="Talent Chance">★</span>' : ''}</div><div class="pips">${pips(R.maxFortune(c), +f.fortune || 0, 'fortune')}</div></div>
-          <div class="fate-box"><div class="fk">Résilience</div><div class="pips">${pips(+f.resilience || 0, +f.resilience || 0, 'noop', true)}</div></div>
-          <div class="fate-box"><div class="fk">Détermination${R.strongMindBonus(c) ? ' <span class="tal" title="Talent Fort d\'Esprit">★</span>' : ''}</div><div class="pips">${pips(R.maxResolve(c), +f.resolve || 0, 'resolve', true)}</div></div>
-        </div>
-        ${f.motivation ? `<p class="small" style="margin:10px 0 0"><b>Motivation :</b> ${esc(f.motivation)}</p>` : ''}
-        <div class="row" style="margin-top:10px"><button class="btn ghost small" data-act="newSession">Nouvelle séance (Chance au max)</button></div>
-      </section>
-    </div>
-    <div class="stack">
-      <section class="card">
-        <h2>Attaques</h2>
-        ${attacks}
-        <p class="small muted" style="margin:8px 0 0">Touche une attaque pour lancer les dés. Gère tes armes dans l'onglet Sac.</p>
-      </section>
-      <section class="card">
-        <h2>Défense</h2>
-        ${defense}
-        <div class="add-row"><button class="btn ghost small" data-act="rollFree">${icon('die')} Autre test</button></div>
-      </section>
-      <section class="card">
-        <h2>Talents de combat</h2>
-        ${combatTalents.map((t) => {
-          const info = store.findTalent(t.name);
-          return `<div class="list-item" data-act="editTalent" data-i="${c.talents.indexOf(t)}" role="button"><span class="badge soft">${t.times}</span><span class="li-main"><div class="li-title">${esc(t.name)}</div><div class="li-sub">${esc(info?.desc || t.desc || '')}</div></span></div>`;
-        }).join('') || '<div class="empty">Aucun talent de combat repéré.</div>'}
+        <h2>Blessures critiques</h2>
+        ${c.health.criticals.map((cr, i) => `<div class="list-item"><span class="li-main"><div class="li-title">${esc(cr.name)}</div><div class="li-sub">${esc(cr.location)}${cr.desc ? ` — ${esc(cr.desc)}` : ''}</div></span><button class="icon-btn" style="color:var(--blood)" data-act="healCrit" data-i="${i}" aria-label="Guérie">${icon('check')}</button></div>`).join('') || '<div class="empty">Aucune, pour l\'instant…</div>'}
+        <div class="add-row"><button class="btn ghost small" data-act="addCrit">${icon('plus')} Blessure critique</button></div>
       </section>
     </div>
     <div class="stack">
@@ -383,19 +370,26 @@ function viewSante(c) {
         <p class="small muted" style="margin:10px 0 0">Calculés depuis les armures portées (onglet Sac).</p>
       </section>
       <section class="card">
-        <h2>États</h2>
-        <div class="conds">${R.CONDITIONS.map((cd) => {
-          const n = +c.health.conditions[cd.name] || 0;
-          return `<button class="cond ${n ? 'on' : ''}" data-act="cond" data-c="${esc(cd.name)}"><span class="cn">${cd.name}</span>${n ? `${cd.stack ? `<span class="badge gold">${n}</span>` : ''}<span class="cminus" data-act="condMinus" data-c="${esc(cd.name)}">−</span>` : ''}</button>`;
-        }).join('')}</div>
+        <h2>Talents de combat</h2>
+        ${combatTalents.map((t) => {
+          const info = store.findTalent(t.name);
+          return `<div class="list-item" data-act="editTalent" data-i="${c.talents.indexOf(t)}" role="button"><span class="badge soft">${t.times}</span><span class="li-main"><div class="li-title">${esc(t.name)}</div><div class="li-sub">${esc(info?.desc || t.desc || '')}</div></span></div>`;
+        }).join('') || '<div class="empty">Aucun talent de combat repéré.</div>'}
       </section>
       <section class="card">
-        <h2>Blessures critiques</h2>
-        ${c.health.criticals.map((cr, i) => `<div class="list-item"><span class="li-main"><div class="li-title">${esc(cr.name)}</div><div class="li-sub">${esc(cr.location)}${cr.desc ? ` — ${esc(cr.desc)}` : ''}</div></span><button class="icon-btn" style="color:var(--blood)" data-act="healCrit" data-i="${i}" aria-label="Guérie">${icon('check')}</button></div>`).join('') || '<div class="empty">Aucune, pour l\'instant…</div>'}
-        <div class="add-row"><button class="btn ghost small" data-act="addCrit">${icon('plus')} Blessure critique</button></div>
+        <h2>Destin & Résilience</h2>
+        <div class="fate-grid">
+          <div class="fate-box"><div class="fk">Destin</div><div class="pips">${pips(+f.fate || 0, +f.fate || 0, 'noop')}</div></div>
+          <div class="fate-box"><div class="fk">Chance${R.luckBonus(c) ? ' <span class="tal" title="Talent Chance">★</span>' : ''}</div><div class="pips">${pips(R.maxFortune(c), +f.fortune || 0, 'fortune')}</div></div>
+          <div class="fate-box"><div class="fk">Résilience</div><div class="pips">${pips(+f.resilience || 0, +f.resilience || 0, 'noop', true)}</div></div>
+          <div class="fate-box"><div class="fk">Détermination${R.strongMindBonus(c) ? ' <span class="tal" title="Talent Fort d\'Esprit">★</span>' : ''}</div><div class="pips">${pips(R.maxResolve(c), +f.resolve || 0, 'resolve', true)}</div></div>
+        </div>
+        ${f.motivation ? `<p class="small" style="margin:10px 0 0"><b>Motivation :</b> ${esc(f.motivation)}</p>` : ''}
+        <div class="row" style="margin-top:10px"><button class="btn ghost small" data-act="newSession">Nouvelle séance (Chance au max)</button></div>
       </section>
     </div>
-  </div>`;
+  </div>
+  <div class="combat-end"><button class="btn ghost" data-act="adv" data-d="reset">Fin du combat · Avantage à 0</button><span class="small muted">+10 par point d'Avantage aux tests de combat (ajouté automatiquement aux jets).</span></div>`;
 }
 
 const stepper = (path, val) => `<span class="step"><button data-act="step" data-p="${path}" data-d="-1">−</button><span class="val">${+val || 0}</span><button data-act="step" data-p="${path}" data-d="1">+</button></span>`;
@@ -906,6 +900,7 @@ const A = {
       } }],
     });
   },
+  scrollConds() { document.getElementById('condsCard')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); },
   fortuneSpend() {
     const c = C();
     if (!(+c.fate.fortune > 0)) { toast('Plus de points de Chance'); return; }
