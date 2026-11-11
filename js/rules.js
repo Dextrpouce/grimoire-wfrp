@@ -120,9 +120,9 @@ export const norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀
 
 // Talents qui donnent +5 permanent à une caractéristique (hors augmentations achetées)
 export const CHAR_TALENTS = {
-  CC: ['Guerrier-Né', 'Warrior Born'], CT: ['Bon Tireur', 'Marksman'], F: ['Très Fort', 'Very Strong'],
+  CC: ['Guerrier-Né', 'Warrior Born'], CT: ['Tireur précis', 'Tireur de précision', 'Bon Tireur', 'Marksman'], F: ['Très Fort', 'Very Strong'],
   E: ['Très Résistant', 'Very Resilient'], I: ["Vif d'Esprit", 'Sharp'], Ag: ['Réflexes Éclairs', 'Lightning Reflexes'],
-  Dex: ['Doigt Agile', 'Doigts Agiles', 'Nimble Fingered'], Int: ['Intelligent', 'Savvy'],
+  Dex: ['Doigt Agile', 'Doigts Agiles', 'Nimble Fingered'], Int: ['Perspicace', 'Intelligent', 'Savvy'],
   FM: ["Calme d'Esprit", 'Coolheaded'], Soc: ['Charmant', 'Suave'],
 };
 
