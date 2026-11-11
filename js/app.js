@@ -298,7 +298,12 @@ function viewSante(c) {
   const defense = `<div class="stats-row def-row">
       <div class="stat roll" data-act="rollSkill" data-id="${dodge?.id || ''}" role="button"><div class="sk">Esquive</div><div class="sv">${dodge ? R.skillValue(c, dodge) + adv * 10 : '–'}</div>${dodge && adv ? `<div class="def-bonus">${R.skillValue(c, dodge)} +${adv * 10} Av.</div>` : ''}</div>
       <div class="stat roll" data-act="rollParry" role="button"><div class="sk">Parade</div><div class="sv">${melee.value + adv * 10}</div>${adv || parryDef ? `<div class="def-bonus">${adv ? `${melee.value} +${adv * 10} Av.` : ''}${parryDef ? ' <b>+1 DR</b>' : ''}</div>` : ''}</div>
-      <div class="stat roll" data-act="rollChar" data-k="I" role="button"><div class="sk">Initiative</div><div class="sv">${R.charValue(c, 'I')}</div></div>
+      ${(() => {
+        const ir = c.health.initRoll;
+        return ir
+          ? `<div class="stat roll init-set" data-act="initiative" role="button"><div class="sk">Initiative</div><div class="sv">${ir.total}</div><div class="def-bonus">BI ${ir.bi}${ir.reflexes ? ` +${ir.reflexes} Réflexes` : ''} + ${ir.die}</div></div>`
+          : `<div class="stat roll" data-act="initiative" role="button"><div class="sk">Initiative</div><div class="sv">${icon('die')}</div><div class="def-bonus">Lancer · I ${R.charValue(c, 'I')}</div></div>`;
+      })()}
     </div>
     <div class="stats-row" style="margin-top:8px">
       <div class="stat"><div class="sk">Mouvement</div><div class="sv">${mv.move}</div></div>
@@ -389,7 +394,7 @@ function viewSante(c) {
       </section>
     </div>
   </div>
-  <div class="combat-end"><button class="btn ghost" data-act="adv" data-d="reset">Fin du combat · Avantage à 0</button><span class="small muted">+10 par point d'Avantage aux tests de combat (ajouté automatiquement aux jets).</span></div>`;
+  <div class="combat-end"><button class="btn ghost" data-act="adv" data-d="reset">Fin du combat · Avantage et initiative à 0</button><span class="small muted">+10 par point d'Avantage aux tests de combat (ajouté automatiquement aux jets).</span></div>`;
 }
 
 // Bulle d'effet d'une qualité, ouverte au toucher (les infobulles au survol n'existent pas sur tablette)
@@ -1143,7 +1148,48 @@ const A = {
       } }],
     });
   },
-  adv(el) { const c = C(); c.health.advantage = el.dataset.d === 'reset' ? 0 : Math.max(0, (+c.health.advantage || 0) + +el.dataset.d); commit(); },
+  adv(el) {
+    const c = C();
+    if (el.dataset.d === 'reset') {
+      c.health.advantage = 0;
+      const hadInit = !!c.health.initRoll;
+      delete c.health.initRoll;
+      commit(); toast(hadInit ? 'Fin du combat : Avantage et initiative remis à 0' : 'Avantage remis à 0');
+      return;
+    }
+    c.health.advantage = Math.max(0, (+c.health.advantage || 0) + +el.dataset.d); commit();
+  },
+  // Jet d'initiative : BI (+ Réflexes de Combat) + 1d10, gardé jusqu'à la fin du combat
+  initiative() {
+    const c = C(); const ib = R.initiativeBonus(c);
+    const cur = c.health.initRoll;
+    const save = (die) => {
+      c.health.initRoll = { bi: ib.bi, reflexes: ib.reflexes, die, total: ib.total + die };
+      commit(); toast(`Initiative : ${ib.total + die}`);
+    };
+    openDialog({
+      title: 'Initiative',
+      body: `<p style="margin-top:0">Score = <b>BI ${ib.bi}</b>${ib.reflexes ? ` + <b>${ib.reflexes}</b> (Réflexes de Combat)` : ''} + <b>1d10</b></p>
+        ${cur ? `<div class="cost-line">Score actuel : <b>${cur.total}</b> (dé : ${cur.die}). Il reste affiché jusqu'à la fin du combat.</div>` : ''}
+        <div class="row" style="margin-top:10px">
+          <button type="button" class="btn gold" id="iRoll" style="flex:1">${icon('die')} Lancer 1d10</button>
+          <input type="number" inputmode="numeric" name="die" min="1" max="10" placeholder="ou mon dé" style="width:110px">
+          <button type="button" class="btn ghost" id="iManual">OK</button>
+        </div>`,
+      onOpen: (f) => {
+        f.querySelector('#iRoll').onclick = () => { save(1 + Math.floor(Math.random() * 10)); dlg.close(); };
+        f.querySelector('#iManual').onclick = () => {
+          const d = num(f.die.value);
+          if (d < 1 || d > 10) { toast('Entre un dé de 1 à 10'); return; }
+          save(d); dlg.close();
+        };
+      },
+      actions: [
+        ...(cur ? [{ label: 'Effacer', cls: 'ghost', onClick: () => { delete c.health.initRoll; commit(); } }, 'spacer'] : []),
+        { label: 'Fermer', cls: 'ghost' },
+      ],
+    });
+  },
   cond(el) {
     const c = C(); const name = el.dataset.c; const def = R.CONDITIONS.find((x) => x.name === name);
     const n = +c.health.conditions[name] || 0;

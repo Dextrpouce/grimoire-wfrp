@@ -259,6 +259,12 @@ export function magicSkills(c) {
   };
 }
 
+// Jet d'initiative : dizaines d'Initiative (BI) + 1d10 ; Réflexes de Combat ajoute +1 par niveau (≈ +10 en Initiative)
+export function initiativeBonus(c) {
+  const reflexes = ['Réflexes de Combat', 'Combat Reflexes'].reduce((n, name) => n + talentTimes(c, name), 0);
+  return { bi: charBonus(c, 'I'), reflexes, total: charBonus(c, 'I') + reflexes };
+}
+
 // Corruption : au-delà de BE + BFM, test de mutation
 export const corruptionMax = (c) => charBonus(c, 'E') + charBonus(c, 'FM');
 
