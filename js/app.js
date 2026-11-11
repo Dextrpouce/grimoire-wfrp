@@ -1372,26 +1372,6 @@ const A = {
 };
 
 // ---------- Effet de corruption (« jumpscare ») ----------
-const CHAOS_STAR = (() => {
-  // Symbole du chaos : cercle et huit flèches (dessin géométrique simple)
-  const arrows = Array.from({ length: 8 }, (_, i) => `<g transform="rotate(${i * 45} 100 100)">
-    <path d="M100 100 L100 14" stroke-width="7"/><path d="M100 4 L86 28 L100 22 L114 28 Z" stroke="none"/></g>`).join('');
-  return `<svg class="scare-star" viewBox="0 0 200 200" aria-hidden="true"><g fill="currentColor" stroke="currentColor" stroke-linecap="round">${arrows}</g>
-    <circle cx="100" cy="100" r="30" fill="none" stroke="currentColor" stroke-width="9"/></svg>`;
-})();
-
-// Créature originale : visage d'ombre aux yeux luisants et à la gueule béante
-const SCARE_FACE = `<svg class="scare-face" viewBox="0 0 200 240" aria-hidden="true">
-  <defs><radialGradient id="eyeGlow"><stop offset="0" stop-color="#fff6b0"/><stop offset=".35" stop-color="#ffcc33"/><stop offset="1" stop-color="#ff2a00" stop-opacity="0"/></radialGradient></defs>
-  <path d="M100 6C46 6 18 52 22 104c3 40 22 70 40 92 10 12 22 38 38 38s28-26 38-38c18-22 37-52 40-92C182 52 154 6 100 6z" fill="#0b0605"/>
-  <path d="M40 92c14-14 34-16 50-4M160 92c-14-14-34-16-50-4" stroke="#3a0d08" stroke-width="6" fill="none"/>
-  <ellipse cx="66" cy="112" rx="24" ry="16" fill="url(#eyeGlow)"/><ellipse cx="134" cy="112" rx="24" ry="16" fill="url(#eyeGlow)"/>
-  <ellipse cx="66" cy="112" rx="3.5" ry="11" fill="#1a0000"/><ellipse cx="134" cy="112" rx="3.5" ry="11" fill="#1a0000"/>
-  <path d="M58 160c14 30 70 30 84 0-10 34-74 34-84 0z" fill="#2a0000"/>
-  <path d="M58 160l8 18 6-16 7 20 7-20 7 22 7-22 7 20 7-20 6 16 8-18" fill="none" stroke="#e8dcc0" stroke-width="3" stroke-linejoin="round"/>
-  <path d="M64 186l8-12 7 14 7-14 7 16 7-16 7 14 7-14 8 12" fill="none" stroke="#e8dcc0" stroke-width="3" stroke-linejoin="round"/>
-</svg>`;
-
 const WHISPERS = [
   'Les Dieux Sombres ont entendu ton nom…', 'Quelque chose remue sous ta peau…',
   'Le Warp murmure, et tu écoutes…', 'Une voix rit au fond de ton crâne…',
@@ -1433,14 +1413,14 @@ function corruptionScare(c) {
   const el = document.createElement('div');
   el.id = 'scare';
   el.className = `scare ${gentle ? 'gentle' : ''} lvl${level}`;
-  el.innerHTML = `${CHAOS_STAR}${SCARE_FACE}
+  el.innerHTML = `<img class="scare-img" src="img/chaos.webp" alt="">
     <div class="scare-text">${over ? '<b>Test de mutation !</b>' : esc(WHISPERS[Math.floor(Math.random() * WHISPERS.length)])}</div>
     <div class="scare-count">Corruption ${c.corruption} / ${R.corruptionMax(c)}</div>`;
   document.body.appendChild(el);
   if (!gentle) { scareSound(level); navigator.vibrate?.([90, 40, 160, 40, 60 * level]); }
   const close = () => { el.classList.add('out'); setTimeout(() => el.remove(), 400); };
   el.addEventListener('click', close);
-  setTimeout(close, over ? 3200 : 2200);
+  setTimeout(close, over ? 3600 : 2600);
 }
 
 // ---------- Lanceur de dés ----------
