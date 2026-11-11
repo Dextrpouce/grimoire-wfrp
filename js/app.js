@@ -269,11 +269,19 @@ function viewSante(c) {
   const attacks = weapons.map(({ w, i }) => {
     const ws = R.weaponSkill(c, w);
     const d = R.weaponDamage(c, w);
+    const bonus = [];
+    if (R.hasQuality(w, 'acc10')) bonus.push(['+10', 'Minutieux']);
+    if (adv) bonus.push([`+${adv * 10}`, 'Avantage']);
+    const eff = ws.value + (R.hasQuality(w, 'acc10') ? 10 : 0) + adv * 10;
+    const dr = (R.hasQuality(w, 'hit+1') ? 1 : 0) - (R.hasQuality(w, 'hit-1') ? 1 : 0);
+    const detail = bonus.length || dr
+      ? `<div class="atk-bonus">${bonus.length ? `${ws.value} ${bonus.map(([v, n]) => `<b>${v}</b> ${n}`).join(' ')}` : ''}${dr ? ` <b class="${dr > 0 ? 'pro' : 'con'}">${dr > 0 ? '+' : ''}${dr} DR</b> si touché` : ''}</div>`
+      : '';
     return `<div class="attack" data-act="rollAttack" data-i="${i}" role="button">
       <div class="atk-main"><div class="li-title">${esc(w.name)}</div>
         <div class="li-sub">${esc(ws.label)}${w.reach ? ` · ${esc(w.reach)}` : ''}</div>
-        ${qualityTags(w)}</div>
-      <div class="atk-num"><span class="atk-val ${ws.trained ? '' : 'untrained'}">${ws.value}</span><span class="atk-lbl">${ws.ranged ? 'Tir' : 'Attaque'}</span></div>
+        ${detail}${qualityTags(w)}</div>
+      <div class="atk-num"><span class="atk-val ${ws.trained ? '' : 'untrained'} ${eff !== ws.value ? 'boosted' : ''}">${eff}</span><span class="atk-lbl">${ws.ranged ? 'Tir' : 'Attaque'}</span></div>
       <div class="atk-num"><span class="atk-val dmg">${d != null ? d : esc(w.damage || '–')}</span><span class="atk-lbl">Dégâts</span></div>
       <span class="atk-die">${icon('die')}</span>
     </div>`;
@@ -283,9 +291,11 @@ function viewSante(c) {
   const dodge = c.skills.find((s) => R.norm(s.name) === 'esquive');
   const melee = c.weapons.filter((w) => !R.isRangedWeapon(w)).sort((a, b) => R.weaponSkill(c, b).value - R.weaponSkill(c, a).value || R.hasQuality(b, 'parry+1') - R.hasQuality(a, 'parry+1')).map((w) => R.weaponSkill(c, w))[0]
     || R.weaponSkill(c, { group: 'Base', reach: 'Moyenne' });
+  const parryW = c.weapons.filter((w) => !R.isRangedWeapon(w)).sort((a, b) => R.weaponSkill(c, b).value - R.weaponSkill(c, a).value || R.hasQuality(b, 'parry+1') - R.hasQuality(a, 'parry+1'))[0];
+  const parryDef = !!parryW && R.hasQuality(parryW, 'parry+1');
   const defense = `<div class="stats-row def-row">
-      <div class="stat roll" data-act="rollSkill" data-id="${dodge?.id || ''}" role="button"><div class="sk">Esquive</div><div class="sv">${dodge ? R.skillValue(c, dodge) : '–'}</div></div>
-      <div class="stat roll" data-act="rollParry" role="button"><div class="sk">Parade</div><div class="sv">${melee.value}</div></div>
+      <div class="stat roll" data-act="rollSkill" data-id="${dodge?.id || ''}" role="button"><div class="sk">Esquive</div><div class="sv">${dodge ? R.skillValue(c, dodge) + adv * 10 : '–'}</div>${dodge && adv ? `<div class="def-bonus">${R.skillValue(c, dodge)} +${adv * 10} Av.</div>` : ''}</div>
+      <div class="stat roll" data-act="rollParry" role="button"><div class="sk">Parade</div><div class="sv">${melee.value + adv * 10}</div>${adv || parryDef ? `<div class="def-bonus">${adv ? `${melee.value} +${adv * 10} Av.` : ''}${parryDef ? ' <b>+1 DR</b>' : ''}</div>` : ''}</div>
       <div class="stat roll" data-act="rollChar" data-k="I" role="button"><div class="sk">Initiative</div><div class="sv">${R.charValue(c, 'I')}</div></div>
     </div>
     <div class="stats-row" style="margin-top:8px">

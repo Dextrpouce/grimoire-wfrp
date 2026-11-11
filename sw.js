@@ -1,5 +1,5 @@
 // Service worker : garde l'appli en cache pour qu'elle fonctionne sans internet.
-const VERSION = 'v33';
+const VERSION = 'v34';
 const CACHE = `grimoire-${VERSION}`;
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
