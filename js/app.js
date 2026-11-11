@@ -12,7 +12,7 @@ const fmtDate = (t) => new Date(t).toLocaleDateString('fr-FR', { day: '2-digit',
 const ICONS = {
   sheet: '<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h7M9 9h3"/>',
   heart: '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>',
-  bag: '<path d="M5 8h14l-1 13H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>',
+  bag: '<path d="M9 7.5h6"/><path d="M9.2 7.5C5.5 9.5 4 12.6 4 15.5 4 19 6.8 21 12 21s8-2 8-5.5c0-2.9-1.5-6-5.2-8"/><path d="M9.2 7.5 7.5 3.8c1.6.7 3 .9 4.5.9s2.9-.2 4.5-.9l-1.7 3.7"/><circle cx="12" cy="14.5" r="2.2"/>',
   up: '<path d="M12 3l7 7h-4v6H9v-6H5z"/><path d="M8 21h8"/>',
   book: '<path d="M4 4h6a2 2 0 0 1 2 2v14a2 2 0 0 0-2-2H4z"/><path d="M20 4h-6a2 2 0 0 0-2 2v14a2 2 0 0 1 2-2h6z"/>',
   cloud: '<path d="M7 18h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 9.5 4.3 4.3 0 0 0 7 18z"/>',
@@ -29,6 +29,8 @@ const ICONS = {
   users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/>',
   library: '<path d="M4 4h3v16H4zM9 4h3v16H9z"/><path d="M14.5 5.2l2.9-.8 3.6 14.6-2.9.7z"/>',
   wand: '<path d="M4 20L15 9"/><path d="M17 3v3M15.5 4.5h3M20 8v2M19 9h2M13 4v1.5M12.2 4.8h1.6"/>',
+  sword: '<path d="M20 4l-.6 3.4L10 16.8 7.2 14 16.6 4.6z"/><path d="M5.2 12.4l6.4 6.4"/><path d="M8.4 15.6 4.2 19.8"/><circle cx="3.6" cy="20.4" r=".9"/>',
+  die: '<rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1.2"/><circle cx="15" cy="15" r="1.2"/><circle cx="15" cy="9" r="1.2"/><circle cx="9" cy="15" r="1.2"/>',
   skull: '<path d="M12 3a8 8 0 0 0-8 8c0 3 1.5 4.8 3 5.6V20h10v-3.4c1.5-.8 3-2.6 3-5.6a8 8 0 0 0-8-8z"/><circle cx="9" cy="11" r="1.6"/><circle cx="15" cy="11" r="1.6"/><path d="M11 20v-2M13 20v-2"/>',
 };
 const icon = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]}</svg>`;
@@ -54,7 +56,7 @@ const ui = {
 };
 
 const TABS = [
-  ['fiche', 'Fiche', 'sheet'], ['sante', 'Santé', 'heart'], ['sac', 'Sac', 'bag'],
+  ['fiche', 'Fiche', 'sheet'], ['sante', 'Combat', 'sword'], ['sac', 'Sac', 'bag'],
   ['prog', 'Progrès', 'up'], ['carnet', 'Carnet', 'book'], ['biblio', 'Biblio', 'library'],
 ];
 
@@ -244,7 +246,7 @@ function viewFiche(c) {
   </div>`;
 }
 
-// ---------- Santé ----------
+// ---------- Combat (ancien onglet Santé) ----------
 const FIGURE = `<svg class="fig" viewBox="0 0 110 200" aria-hidden="true"><g fill="rgba(60,40,22,.18)" stroke="rgba(60,40,22,.45)" stroke-width="1.5">
   <circle cx="55" cy="22" r="15"/><path d="M33 42h44l6 60H27z"/><path d="M33 44 16 98l9 3 14-42z"/><path d="M77 44l17 54-9 3-14-42z"/>
   <path d="M30 104h24l-3 88H37z"/><path d="M56 104h24l-7 88H59z"/></g></svg>`;
@@ -256,12 +258,58 @@ function viewSante(c) {
   const pct = max ? Math.max(0, cur / max * 100) : 0;
   const f = c.fate;
   const ap = R.armourPoints(c);
+  const adv = +c.health.advantage || 0;
+  const mv = R.movement(c);
   const loc = (k) => { const l = R.LOCATIONS.find((x) => x.key === k); return `<div class="loc"><div class="lr">${l.range}</div><div class="lv">${ap[k]}</div><div class="ln">${l.name}</div></div>`; };
   const pips = (total, on, act, red = false) => total
     ? Array.from({ length: total }, (_, i) => `<button class="pip ${red ? 'red' : ''} ${i < on ? 'on' : ''}" data-act="${act}" data-n="${i}" aria-label="point ${i + 1}"></button>`).join('')
     : '<span class="small muted">—</span>';
 
-  return `<div class="grid two">
+  // Attaques : chaque arme + les mains nues
+  const weapons = [...c.weapons.map((w, i) => ({ w, i })), { w: { name: 'Mains nues', group: 'Bagarre', reach: 'Personnelle', damage: 'BF+0', qualities: 'Inoffensive' }, i: -1 }];
+  const attacks = weapons.map(({ w, i }) => {
+    const ws = R.weaponSkill(c, w);
+    const d = R.weaponDamage(c, w);
+    return `<div class="attack" data-act="rollAttack" data-i="${i}" role="button">
+      <div class="atk-main"><div class="li-title">${esc(w.name)}</div>
+        <div class="li-sub">${esc(ws.label)}${w.reach ? ` · ${esc(w.reach)}` : ''}${w.qualities ? ` · ${esc(w.qualities)}` : ''}</div></div>
+      <div class="atk-num"><span class="atk-val ${ws.trained ? '' : 'untrained'}">${ws.value}</span><span class="atk-lbl">${ws.ranged ? 'Tir' : 'Attaque'}</span></div>
+      <div class="atk-num"><span class="atk-val dmg">${d != null ? d : esc(w.damage || '–')}</span><span class="atk-lbl">Dégâts</span></div>
+      <span class="atk-die">${icon('die')}</span>
+    </div>`;
+  }).join('');
+
+  // Défense et ordre d'action
+  const dodge = c.skills.find((s) => R.norm(s.name) === 'esquive');
+  const melee = c.weapons.filter((w) => !R.isRangedWeapon(w)).map((w) => R.weaponSkill(c, w)).sort((a, b) => b.value - a.value)[0]
+    || R.weaponSkill(c, { group: 'Base', reach: 'Moyenne' });
+  const defense = `<div class="stats-row def-row">
+      <div class="stat roll" data-act="rollSkill" data-id="${dodge?.id || ''}" role="button"><div class="sk">Esquive</div><div class="sv">${dodge ? R.skillValue(c, dodge) : '–'}</div></div>
+      <div class="stat roll" data-act="rollParry" role="button"><div class="sk">Parade</div><div class="sv">${melee.value}</div></div>
+      <div class="stat roll" data-act="rollChar" data-k="I" role="button"><div class="sk">Initiative</div><div class="sv">${R.charValue(c, 'I')}</div></div>
+    </div>
+    <div class="stats-row" style="margin-top:8px">
+      <div class="stat"><div class="sk">Mouvement</div><div class="sv">${mv.move}</div></div>
+      <div class="stat"><div class="sk">Marche</div><div class="sv">${mv.walk}</div></div>
+      <div class="stat"><div class="sk">Course</div><div class="sv">${mv.run}</div></div>
+    </div>`;
+
+  // Talents utiles en combat (d'après la bibliothèque)
+  const combatTalents = c.talents.filter((t) => {
+    const info = store.findTalent(t.name);
+    const txt = R.norm(`${info?.tests || ''} ${info?.desc || ''}`);
+    return /melee|corps a corps|tir\b|projectile|esquive|initiative|combat|degat|attaque|charge|parade|bouclier|avantage|frenesie/.test(txt);
+  });
+
+  return `<div class="combat-bar">
+      <div class="cb-item"><span class="cb-k">Blessures</span>
+        <span class="cb-ctrl"><button data-act="wound" data-d="-1">−</button><b class="${cur <= 0 ? 'danger' : ''}">${cur}<small>/${max}</small></b><button data-act="wound" data-d="1">+</button></span></div>
+      <div class="cb-item"><span class="cb-k">Avantage</span>
+        <span class="cb-ctrl"><button data-act="adv" data-d="-1">−</button><b>${adv}</b><button data-act="adv" data-d="1">+</button></span></div>
+      <div class="cb-item" data-act="fortuneSpend" role="button" title="Toucher pour dépenser 1 point de Chance"><span class="cb-k">Chance</span>
+        <span class="cb-ctrl"><b>${+f.fortune || 0}<small>/${R.maxFortune(c)}</small></b></span></div>
+    </div>
+    <div class="grid three combat">
     <div class="stack">
       <section class="card wounds">
         <h2>Blessures</h2>
@@ -284,6 +332,16 @@ function viewSante(c) {
         </div>
       </section>
       <section class="card">
+        <h2>Avantage</h2>
+        <div class="row between">
+          <button class="btn" style="width:56px;font-size:22px" data-act="adv" data-d="-1">−</button>
+          <span class="adv-val">${adv}</span>
+          <button class="btn green" style="width:56px;font-size:22px" data-act="adv" data-d="1">+</button>
+          <button class="btn ghost small" data-act="adv" data-d="reset">Fin du combat</button>
+        </div>
+        <p class="small muted" style="margin:8px 0 0">+10 par point d'Avantage aux tests de combat (ajouté automatiquement aux jets).</p>
+      </section>
+      <section class="card">
         <h2>Destin & Résilience <button class="icon-btn h-act" data-act="editFate" aria-label="Modifier">${icon('edit')}</button></h2>
         <div class="fate-grid">
           <div class="fate-box"><div class="fk">Destin</div><div class="pips">${pips(+f.fate || 0, +f.fate || 0, 'noop')}</div></div>
@@ -294,17 +352,36 @@ function viewSante(c) {
         ${f.motivation ? `<p class="small" style="margin:10px 0 0"><b>Motivation :</b> ${esc(f.motivation)}</p>` : ''}
         <div class="row" style="margin-top:10px"><button class="btn ghost small" data-act="newSession">Nouvelle séance (Chance au max)</button></div>
       </section>
+    </div>
+    <div class="stack">
       <section class="card">
-        <h2>Avantage</h2>
-        <div class="row between">
-          <button class="btn" style="width:56px;font-size:22px" data-act="adv" data-d="-1">−</button>
-          <span class="adv-val">${c.health.advantage || 0}</span>
-          <button class="btn green" style="width:56px;font-size:22px" data-act="adv" data-d="1">+</button>
-          <button class="btn ghost small" data-act="adv" data-d="reset">Remettre à 0</button>
-        </div>
+        <h2>Attaques</h2>
+        ${attacks}
+        <p class="small muted" style="margin:8px 0 0">Touche une attaque pour lancer les dés. Gère tes armes dans l'onglet Sac.</p>
+      </section>
+      <section class="card">
+        <h2>Défense</h2>
+        ${defense}
+        <div class="add-row"><button class="btn ghost small" data-act="rollFree">${icon('die')} Autre test</button></div>
+      </section>
+      <section class="card">
+        <h2>Talents de combat</h2>
+        ${combatTalents.map((t) => {
+          const info = store.findTalent(t.name);
+          return `<div class="list-item" data-act="editTalent" data-i="${c.talents.indexOf(t)}" role="button"><span class="badge soft">${t.times}</span><span class="li-main"><div class="li-title">${esc(t.name)}</div><div class="li-sub">${esc(info?.desc || t.desc || '')}</div></span></div>`;
+        }).join('') || '<div class="empty">Aucun talent de combat repéré.</div>'}
       </section>
     </div>
     <div class="stack">
+      <section class="card">
+        <h2>Points d'armure</h2>
+        <div class="body-map">
+          ${loc('tete')}${FIGURE}${loc('brasG')}
+          ${loc('brasD')}${loc('corps')}
+          ${loc('jambeD')}${loc('jambeG')}
+        </div>
+        <p class="small muted" style="margin:10px 0 0">Calculés depuis les armures portées (onglet Sac).</p>
+      </section>
       <section class="card">
         <h2>États</h2>
         <div class="conds">${R.CONDITIONS.map((cd) => {
@@ -316,20 +393,6 @@ function viewSante(c) {
         <h2>Blessures critiques</h2>
         ${c.health.criticals.map((cr, i) => `<div class="list-item"><span class="li-main"><div class="li-title">${esc(cr.name)}</div><div class="li-sub">${esc(cr.location)}${cr.desc ? ` — ${esc(cr.desc)}` : ''}</div></span><button class="icon-btn" style="color:var(--blood)" data-act="healCrit" data-i="${i}" aria-label="Guérie">${icon('check')}</button></div>`).join('') || '<div class="empty">Aucune, pour l\'instant…</div>'}
         <div class="add-row"><button class="btn ghost small" data-act="addCrit">${icon('plus')} Blessure critique</button></div>
-      </section>
-      <section class="card">
-        <h2>Points d'armure</h2>
-        <div class="body-map">
-          ${loc('tete')}${FIGURE}${loc('brasG')}
-          ${loc('brasD')}${loc('corps')}
-          ${loc('jambeD')}${loc('jambeG')}
-        </div>
-        <p class="small muted" style="margin:10px 0 0">Calculés depuis les armures portées (onglet Équipement).</p>
-      </section>
-      <section class="card">
-        <h2>Corruption</h2>
-        <div class="counter"><span class="ck">Points de corruption</span>${stepper('corruption', c.corruption)}</div>
-        <div class="counter"><span class="ck">Péché</span>${stepper('sin', c.sin)}</div>
       </section>
     </div>
   </div>`;
@@ -556,7 +619,12 @@ function viewCarnet(c) {
       </section>
       <section class="card">
         <h2>Psychologie</h2>${bind('psychology', c.psychology, 'area')}
-        <h3>Corruption et mutations</h3>${bind('mutations', c.mutations, 'area')}
+      </section>
+      <section class="card">
+        <h2>Corruption</h2>
+        <div class="counter"><span class="ck">Points de corruption</span>${stepper('corruption', c.corruption)}</div>
+        <div class="counter"><span class="ck">Péché</span>${stepper('sin', c.sin)}</div>
+        <h3>Mutations</h3>${bind('mutations', c.mutations, 'area')}
       </section>
       <section class="card">
         <h2>Notes</h2>${bind('notes', c.notes, 'area', 'style="min-height:180px"')}
@@ -790,6 +858,47 @@ const A = {
         } },
       ],
     });
+  },
+
+  // --- Combat : jets de dés ---
+  rollAttack(el) {
+    const c = C(); const i = +el.dataset.i;
+    const w = i >= 0 ? c.weapons[i] : { name: 'Mains nues', group: 'Bagarre', reach: 'Personnelle', damage: 'BF+0' };
+    const ws = R.weaponSkill(c, w);
+    openRoll({ title: `Attaque : ${w.name}`, label: ws.label, base: ws.value, combat: true, weapon: w });
+  },
+  rollParry() {
+    const c = C();
+    const best = c.weapons.filter((w) => !R.isRangedWeapon(w)).map((w) => ({ w, s: R.weaponSkill(c, w) })).sort((a, b) => b.s.value - a.s.value)[0];
+    const s = best?.s || R.weaponSkill(c, { group: 'Base', reach: 'Moyenne' });
+    openRoll({ title: `Parade${best ? ` : ${best.w.name}` : ''}`, label: s.label, base: s.value, combat: true });
+  },
+  rollSkill(el) {
+    const c = C(); const s = c.skills.find((x) => x.id === el.dataset.id);
+    if (!s) { toast('Compétence introuvable'); return; }
+    openRoll({ title: R.skillLabel(s), label: `${R.skillLabel(s)} (${s.char})`, base: R.skillValue(c, s), combat: true });
+  },
+  rollChar(el) {
+    const c = C(); const k = el.dataset.k;
+    openRoll({ title: R.CHARS.find((x) => x.key === k).name, label: k, base: R.charValue(c, k), combat: k === 'I' });
+  },
+  rollFree() {
+    const c = C();
+    const opts = [...R.CHARS.map((x) => [`c:${x.key}`, `${x.key} — ${R.charValue(c, x.key)}`]),
+      ...[...c.skills].sort((a, b) => R.skillLabel(a).localeCompare(R.skillLabel(b), 'fr')).map((s) => [`s:${s.id}`, `${R.skillLabel(s)} — ${R.skillValue(c, s)}`])];
+    openDialog({
+      title: 'Quel test ?',
+      body: F.select('what', 'Caractéristique ou compétence', opts[0][0], opts),
+      actions: [cancel, { label: 'Continuer', primary: true, onClick: (f) => {
+        const [t, v] = f.what.value.split(':');
+        setTimeout(() => (t === 'c' ? A.rollChar({ dataset: { k: v } }) : A.rollSkill({ dataset: { id: v } })), 50);
+      } }],
+    });
+  },
+  fortuneSpend() {
+    const c = C();
+    if (!(+c.fate.fortune > 0)) { toast('Plus de points de Chance'); return; }
+    c.fate.fortune--; commit(); toast('1 point de Chance dépensé');
   },
 
   // --- Santé ---
@@ -1241,6 +1350,76 @@ const A = {
     toast(store.status.message);
   },
 };
+
+// ---------- Lanceur de dés ----------
+function openRoll({ title, label, base, combat = false, weapon = null }) {
+  const c = C();
+  const adv = +c.health.advantage || 0;
+  let last = null;
+  openDialog({
+    title,
+    body: `<p class="small muted" style="margin-top:0">${esc(label)} : <b>${base}</b></p>
+      <div class="fields">
+        ${F.select('diff', 'Difficulté', '0', R.DIFFICULTIES)}
+        ${F.num('mod', 'Autre modificateur', 0)}
+      </div>
+      ${combat && adv ? `<label class="row small" style="margin:0 0 8px"><input type="checkbox" name="useAdv" checked style="width:auto"> Avantage : +${adv * 10}</label>` : ''}
+      <div class="roll-target">Cible : <b id="rTarget"></b></div>
+      <div class="row" style="margin:10px 0">
+        <button type="button" class="btn gold" id="rRandom" style="flex:1">${icon('die')} Lancer les dés</button>
+        <input type="number" inputmode="numeric" name="manual" min="1" max="100" placeholder="ou mon jet" style="width:110px">
+        <button type="button" class="btn ghost" id="rManual">OK</button>
+      </div>
+      <div id="rResult"></div>`,
+    onOpen: (f) => {
+      const target = () => Math.max(0, base + num(f.diff.value) + num(f.mod.value) + (f.useAdv?.checked ? adv * 10 : 0));
+      const showTarget = () => { f.querySelector('#rTarget').textContent = target(); };
+      [f.diff, f.mod, f.useAdv].forEach((x) => x?.addEventListener('input', showTarget));
+      f.diff.addEventListener('change', showTarget);
+      showTarget();
+      const show = (roll) => {
+        const r = R.rollResult(target(), roll);
+        last = r;
+        const verdict = r.critical ? 'Réussite critique !' : r.fumble ? 'Maladresse !' : r.success ? 'Réussite' : 'Échec';
+        let extra = '';
+        if (weapon && r.success) {
+          const hit = R.hitLocation(r.roll);
+          const d = R.weaponDamage(c, weapon);
+          extra = `<div class="roll-line">Touché : <b>${hit.name}</b> <span class="muted">(${String(hit.n).padStart(2, '0')})</span></div>
+            <div class="roll-line">Dégâts : <b>${d != null ? `${d + r.sl}` : `${esc(weapon.damage)} + ${r.sl}`}</b> <span class="muted">(${d != null ? `${d} + ${r.sl} DR` : 'arme + DR'}) — avant BE et PA de la cible</span></div>
+            ${r.critical ? '<div class="roll-line"><b>Coup critique</b> : jet sur la table des blessures critiques.</div>' : ''}`;
+        } else if (weapon && r.fumble) {
+          extra = '<div class="roll-line">Fais un jet sur la table des <b>maladresses</b>.</div>';
+        }
+        const fortune = +c.fate.fortune || 0;
+        f.querySelector('#rResult').innerHTML = `<div class="roll-res ${r.success ? 'ok' : 'ko'}">
+            <div class="roll-die">${r.roll === 100 ? '00' : String(r.roll).padStart(2, '0')}</div>
+            <div><div class="roll-verdict">${verdict}</div><div class="roll-sl">${r.sl >= 0 ? '+' : ''}${r.sl} DR <span class="muted small">(cible ${r.target})</span></div></div>
+          </div>${extra}
+          <div class="row" style="margin-top:10px">
+            ${!r.success && fortune ? `<button type="button" class="btn small" id="rFortune">Relancer (1 Chance · reste ${fortune})</button>` : ''}
+            ${combat && r.success ? '<button type="button" class="btn green small" id="rAdv">+1 Avantage</button>' : ''}
+          </div>`;
+        f.querySelector('#rFortune')?.addEventListener('click', () => {
+          c.fate.fortune = Math.max(0, (+c.fate.fortune || 0) - 1); commit(false);
+          show(1 + Math.floor(Math.random() * 100));
+          toast('Relance : 1 point de Chance dépensé');
+        });
+        f.querySelector('#rAdv')?.addEventListener('click', (e) => {
+          c.health.advantage = (+c.health.advantage || 0) + 1; commit(false);
+          e.target.disabled = true; e.target.textContent = `Avantage : ${c.health.advantage}`;
+        });
+      };
+      f.querySelector('#rRandom').addEventListener('click', () => show(1 + Math.floor(Math.random() * 100)));
+      f.querySelector('#rManual').addEventListener('click', () => {
+        const v = num(f.manual.value);
+        if (v < 1 || v > 100) { toast('Entre un jet de 1 à 100'); return; }
+        show(v);
+      });
+    },
+    actions: [{ label: 'Fermer', cls: 'ghost', onClick: () => { render(); } }],
+  });
+}
 
 // ---------- Classe et carrière : sélecteur commun ----------
 // Liste déroulante des 8 classes ; « Autre… » affiche un champ libre. La valeur réelle est dans input[name=className].

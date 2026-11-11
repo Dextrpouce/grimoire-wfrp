@@ -221,6 +221,62 @@ export function weaponDamage(c, w) {
   return null;
 }
 
+// ---------- Combat et jets de dés ----------
+const MELEE_REACH = ['personnelle', 'tres courte', 'courte', 'moyenne', 'longue', 'tres longue', 'immense'];
+const RANGED_GROUPS = ['arc', 'arbalete', 'fronde', 'poudre noire', 'lancer', 'explosifs', 'ingenierie', 'entrave', 'arme de jet'];
+
+export function isRangedWeapon(w) {
+  const reach = norm(w.reach);
+  if (/\d/.test(reach)) return true;
+  if (MELEE_REACH.includes(reach)) return false;
+  return RANGED_GROUPS.includes(norm(w.group));
+}
+
+// Compétence utilisée par une arme : Corps à corps (Groupe) ou Projectiles (Groupe)
+export function weaponSkill(c, w) {
+  const ranged = isRangedWeapon(w);
+  const base = ranged ? 'projectiles' : 'corps a corps';
+  const group = norm(w.group);
+  const skills = c.skills.filter((s) => norm(s.name).startsWith(base));
+  let skill = skills.find((s) => norm(s.spec) === group && group)
+    || (!ranged && (!group || group === 'base') ? skills.find((s) => norm(s.name) === 'corps a corps (base)') : null);
+  if (!skill && !ranged) skill = skills.find((s) => norm(s.name) === 'corps a corps (base)');
+  if (skill && (skill.advances > 0 || skill.basic)) {
+    return { ranged, skill, value: skillValue(c, skill), label: skillLabel(skill), trained: true };
+  }
+  // Sans la compétence : on teste la caractéristique seule
+  const key = ranged ? 'CT' : 'CC';
+  return { ranged, skill: null, value: charValue(c, key), label: `${key} · sans ${ranged ? 'Projectiles' : 'Corps à corps'}${w.group ? ` (${w.group})` : ''}`, trained: false };
+}
+
+// Résultat d'un test d100 : réussite, degrés de réussite (DR), critique sur un double
+export function rollResult(target, roll) {
+  const r = Math.min(100, Math.max(1, Math.round(roll)));
+  const tens = (n) => Math.floor(Math.min(n, 100) / 10);
+  let success = r <= target;
+  if (r <= 5) success = true;
+  if (r >= 96) success = false;
+  let sl = tens(target) - tens(r);
+  if (success && sl < 0) sl = 0;
+  if (!success && sl > 0) sl = 0;
+  if (r <= 5 && sl < 1) sl = 1;
+  const double = r < 100 && r % 11 === 0;
+  return { roll: r, target, success, sl, critical: double && success, fumble: (double || r === 100) && !success };
+}
+
+// Localisation : on inverse les chiffres du jet (34 → 43)
+export function hitLocation(roll) {
+  const s = String(roll % 100).padStart(2, '0');
+  const n = +(s[1] + s[0]) || 100;
+  const key = n <= 9 ? 'tete' : n <= 24 ? 'brasG' : n <= 44 ? 'brasD' : n <= 79 ? 'corps' : n <= 89 ? 'jambeG' : 'jambeD';
+  return { n, key, name: LOCATIONS.find((l) => l.key === key).name };
+}
+
+export const DIFFICULTIES = [
+  ['60', 'Très facile (+60)'], ['40', 'Facile (+40)'], ['20', 'Moyenne (+20)'], ['0', 'Exigeante (+0)'],
+  ['-10', 'Difficile (−10)'], ['-20', 'Ardue (−20)'], ['-30', 'Très difficile (−30)'],
+];
+
 // ---------- Carrière ----------
 export function careerLevel(c) { return Math.min(Math.max(+c.career.level || 1, 1), 4); }
 

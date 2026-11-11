@@ -3,14 +3,14 @@
 Application pour téléphone et tablette Android qui gère ton personnage de **Warhammer Fantasy Roleplay 4e édition** :
 
 - **Fiche** : caractéristiques, mouvement, compétences (de base, groupées, avancées), talents.
-- **Santé** : Blessures (calcul BF + BE×2 + BFM + Dur à cuire), « Encaisser un coup » (soustrait BE + PA de la localisation), Destin/Chance, Résilience/Détermination, Avantage, états, blessures critiques, points d'armure par localisation, corruption.
+- **Combat** : tout sur un écran. Barre fixe (Blessures, Avantage, Chance), attaques par arme avec valeur de test et dégâts calculés, Esquive / Parade / Initiative, talents de combat, points d'armure, états, blessures critiques, Destin et Résilience. **Lanceur de dés** : difficulté, Avantage (+10 par point) ajouté automatiquement, réussite/échec, DR, critique ou maladresse, localisation (dés inversés) et dégâts (arme + DR), relance avec un point de Chance.
 - **Sac** : richesses (CO/PA/SC avec rendu de monnaie), encombrement, armes (dégâts BF+X calculés), armures (portée/non portée), possessions.
 - **Progrès** : XP actuelle/dépensée/totale, carrière et conditions pour terminer l'échelon, changement d'échelon (100 XP) ou de carrière (100/200 XP), **historique de l'XP** avec annulation.
 - **Mode progression** (bouton ★ XP en haut) : des boutons **+** apparaissent à côté des caractéristiques, compétences et talents **seulement si tu as assez d'XP**. Les boutons dorés suivent ta carrière (coût normal), les rosés sont hors carrière (coût ×2).
 - **Classes et carrières** : choix de la classe (Guerriers, Roublards…), carrières proposées selon la classe, et **bibliothèque de carrières partagée** : un schéma saisi une fois par un joueur est réutilisable par tout le groupe.
 - **Bibliothèque de talents** : importe un fichier de talents (Menu ⋮ > Importer) ; à l'ajout d'un talent, la description se remplit seule, et le maximum (ex. « Bonus de I ») est calculé et respecté en mode progression.
 - **Biblio** : onglet regroupant les bibliothèques partagées (carrières, talents, sorts) avec recherche. Un sort ajouté depuis la bibliothèque arrive dans le Carnet avec sa portée et sa durée calculées pour ton personnage (ex. « FM mètres (= 42) »).
-- **Carnet** : identité, ambitions, groupe, sorts et prières, psychologie, mutations, notes.
+- **Carnet** : identité, carrière, ambitions, groupe, sorts et prières, psychologie, corruption et mutations, notes.
 - Plusieurs personnages, export/import en fichier JSON.
 
 Tout est enregistré **sur l'appareil**, donc l'appli fonctionne **sans internet**. Dès que le réseau revient, les modifications sont envoyées en ligne automatiquement.
