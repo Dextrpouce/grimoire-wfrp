@@ -131,7 +131,7 @@ function undoLast(c) {
       if (i >= 0) { c.talents[i].times--; if (c.talents[i].times <= 0) c.talents.splice(i, 1); }
     }
     if (u.type === 'level') c.career.level = u.prev;
-    if (u.type === 'career') { c.career = u.prevCareer; c.careerHistory.pop(); }
+    if (u.type === 'career') { c.career = u.prevCareer; c.careerHistory.pop(); if ('prevClass' in u) c.className = u.prevClass; }
   }
   e.undone = true;
   toast(`Annulé : ${e.label}`);
@@ -414,6 +414,7 @@ function viewProg(c) {
         <h2>Carrière <button class="icon-btn h-act" data-act="editCareer" aria-label="Modifier">${icon('edit')}</button></h2>
         ${hasCareer ? `
           <div style="text-align:center">
+            ${c.className ? `<span class="tag" style="font-family:var(--font-title);letter-spacing:.06em">${esc(c.className)}</span>` : ''}
             <div style="font-family:var(--font-title);font-weight:900;font-size:22px;color:var(--blood)">${esc(c.career.name)}</div>
             <div>${esc(L.title || '')} — <b>échelon ${lvl}</b>${L.status ? ` · Statut ${esc(L.status)}` : ''}</div>
             ${c.career.path ? `<div class="small muted">${esc(c.career.path)}</div>` : ''}
@@ -430,6 +431,11 @@ function viewProg(c) {
         ` : `<p class="empty">Aucune carrière renseignée.</p><button class="btn block" data-act="editCareer">Renseigner ma carrière</button>
              <p class="small muted">Saisis le schéma de carrière de ton livre de règles : l'appli saura alors ce qui est « dans ta carrière » (coût normal) ou « hors carrière » (coût ×2).</p>`}
         ${c.careerHistory.length ? `<h3>Carrières précédentes</h3>${c.careerHistory.map((h) => `<div class="small">• ${esc(h.name)} — ${esc(h.title || '')} (échelon ${h.level})</div>`).join('')}` : ''}
+      </section>
+      <section class="card">
+        <h2>Bibliothèque de carrières</h2>
+        ${libraryList()}
+        <p class="small muted" style="margin:8px 0 0">Les schémas saisis par toi et tes camarades. Coche « Enregistrer dans la bibliothèque » en modifiant une carrière pour la partager.${store.userUid ? '' : ' <b>Connecte-toi (nuage) pour voir ceux des autres.</b>'}</p>
       </section>
       <section class="card">
         <h2>Coûts en XP</h2>
@@ -451,6 +457,19 @@ function viewProg(c) {
   </div>`;
 }
 
+function libraryList() {
+  const all = store.careers();
+  if (!all.length) return '<div class="empty">Aucun schéma pour l\'instant.</div>';
+  const groups = {};
+  for (const t of all) (groups[t.className || 'Autres'] ||= []).push(t);
+  return Object.keys(groups).sort((a, b) => a.localeCompare(b, 'fr')).map((g) => `<h3>${esc(g)}</h3>${groups[g].map((t) => `
+    <div class="list-item" data-act="openCareerTemplate" data-id="${esc(t.id)}" role="button">
+      <span class="li-main"><div class="li-title">${esc(t.name)}</div>
+      <div class="li-sub">${t.levels.map((l) => l.title).filter(Boolean).map(esc).join(' → ') || 'Titres non renseignés'}</div></span>
+      <span class="badge ${store.canEditCareer(t) ? 'gold' : 'soft'}" title="${store.canEditCareer(t) ? 'À toi' : esc(t.authorName || '')}">${store.canEditCareer(t) ? '★' : esc((t.authorName || '?').charAt(0).toUpperCase())}</span>
+    </div>`).join('')}`).join('');
+}
+
 // ---------- Carnet ----------
 function viewCarnet(c) {
   const sp = Object.keys(R.SPECIES);
@@ -461,7 +480,7 @@ function viewCarnet(c) {
         <div class="fields">
           <div class="field full"><label>Nom</label>${bind('name', c.name, 'text', 'data-rerender')}</div>
           <div class="field"><label>Race</label><select data-bind="species" data-rerender>${sp.map((s) => `<option ${s === c.species ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
-          <div class="field"><label>Classe</label>${bind('className', c.className)}</div>
+          <div class="field"><label>Classe</label>${bind('className', c.className, 'text', 'list="classListCarnet" data-rerender')}<datalist id="classListCarnet">${Object.keys(R.CLASSES).map((k) => `<option value="${esc(k)}">`).join('')}</datalist></div>
           <div class="field"><label>Âge</label>${bind('age', c.age)}</div>
           <div class="field"><label>Taille</label>${bind('height', c.height)}</div>
           <div class="field"><label>Cheveux</label>${bind('hair', c.hair)}</div>
@@ -798,6 +817,8 @@ const A = {
   editCareer() {
     const c = C(); const k = c.career;
     let shown = R.careerLevel(c);
+    const mine = store.findCareer(k.name);
+    const shareDefault = !mine || store.canEditCareer(mine);
     const panel = (n) => {
       const L = k.levels[n - 1];
       return `<div data-panel="${n}" ${n === shown ? '' : 'hidden'}>
@@ -810,20 +831,23 @@ const A = {
     };
     openDialog({
       title: 'Schéma de carrière',
-      body: `<div class="fields">${F.text('name', 'Carrière', k.name, 'full', 'placeholder="ex. Répurgateur"')}${F.text('path', 'Schéma de carrière', k.path, 'full')}
+      body: `<div class="fields">${careerPickerFields(c.className, k.name)}${F.text('path', 'Schéma de carrière', k.path, 'full')}
         ${F.select('level', 'Échelon actuel', R.careerLevel(c), [1, 2, 3, 4], 'full')}</div>
         <div class="level-tabs">${[1, 2, 3, 4].map((n) => `<button type="button" class="chip ${n === shown ? 'on' : ''}" data-lt="${n}">Échelon ${n}</button>`).join('')}</div>
         ${[1, 2, 3, 4].map(panel).join('')}
-        <p class="small muted">Recopie les éléments marqués pour chaque échelon dans ton livre. Ce qui figure aux échelons inférieurs reste « dans ta carrière ». Pour une compétence au choix, écris par exemple « Langue (au choix) ».</p>`,
+        <p class="small muted">Recopie les éléments marqués pour chaque échelon dans ton livre. Ce qui figure aux échelons inférieurs reste « dans ta carrière ». Pour une compétence au choix, écris par exemple « Langue (au choix) ».</p>
+        <label class="row small" style="margin-top:6px"><input type="checkbox" name="share" ${shareDefault ? 'checked' : ''} style="width:auto"> Enregistrer ce schéma dans la bibliothèque partagée avec mes camarades</label>`,
       onOpen: (f) => {
         f.querySelectorAll('[data-lt]').forEach((b) => b.onclick = () => {
           shown = +b.dataset.lt;
           f.querySelectorAll('[data-lt]').forEach((x) => x.classList.toggle('on', x === b));
           f.querySelectorAll('[data-panel]').forEach((p) => p.hidden = +p.dataset.panel !== shown);
         });
+        wireCareerPicker(f, (tpl) => fillCareerForm(f, tpl));
       },
       actions: [cancel, { label: 'Enregistrer', primary: true, onClick: (f) => {
         k.name = f.name.value.trim(); k.path = f.path.value.trim(); k.level = +f.level.value;
+        c.className = f.className.value.trim();
         const lines = (s) => s.split('\n').map((x) => x.trim()).filter(Boolean);
         for (let n = 1; n <= 4; n++) {
           Object.assign(k.levels[n - 1], {
@@ -833,7 +857,34 @@ const A = {
           });
         }
         commit();
+        if (f.share.checked && k.name && k.levels.some((l) => l.skills.length || l.talents.length || l.chars.length)) {
+          const existing = store.findCareer(k.name);
+          store.saveCareer({
+            id: existing && store.canEditCareer(existing) ? existing.id : null,
+            name: k.name, className: c.className, path: k.path, levels: JSON.parse(JSON.stringify(k.levels)),
+          });
+          toast(store.userUid ? 'Schéma partagé dans la bibliothèque' : 'Schéma enregistré (partagé dès que tu seras connecté)');
+        }
       } }],
+    });
+  },
+  openCareerTemplate(el) {
+    const t = store.careers().find((x) => x.id === el.dataset.id);
+    if (!t) return;
+    const c = C();
+    const mineT = store.canEditCareer(t);
+    openDialog({
+      title: t.name,
+      body: `<p class="small muted">${esc(t.className || 'Classe non précisée')} · ${mineT ? 'ton schéma' : `partagé par ${esc(t.authorName || 'un camarade')}`}</p>
+        ${t.levels.map((l, i) => `<h3>Échelon ${i + 1}${l.title ? ` — ${esc(l.title)}` : ''}${l.status ? ` <span class="muted">(${esc(l.status)})</span>` : ''}</h3>
+          <div class="small">${l.chars.length ? `<b>Caract. :</b> ${l.chars.join(', ')}<br>` : ''}${l.skills.length ? `<b>Compétences :</b> ${esc(l.skills.join(', '))}<br>` : ''}${l.talents.length ? `<b>Talents :</b> ${esc(l.talents.join(', '))}` : ''}</div>`).join('')}`,
+      actions: [
+        ...(mineT ? [{ label: icon('trash'), cls: 'ghost', onClick: () => { store.removeCareer(t.id); render(); toast('Schéma retiré de la bibliothèque'); } }, 'spacer'] : []),
+        { label: 'Fermer', cls: 'ghost' },
+        { label: 'Utiliser pour mon personnage', primary: true, onClick: () => {
+          applyTemplate(c, t); commit(); toast(`Schéma « ${t.name} » appliqué`);
+        } },
+      ],
     });
   },
   nextLevel() {
@@ -847,14 +898,19 @@ const A = {
     const c = C(); const p = R.careerProgress(c); const cost = R.careerChangeCost(p.complete);
     openDialog({
       title: 'Changer de carrière',
-      body: `${F.text('name', 'Nouvelle carrière', '', '', 'autofocus required')}<div class="cost-line">Coût : <b>${cost} XP</b> ${p.complete ? '(échelon actuel terminé)' : '(échelon actuel non terminé)'}</div><p class="small muted">Tu pourras ensuite saisir le schéma de la nouvelle carrière.</p>`,
+      body: `<div class="fields">${careerPickerFields('', '', 'Nouvelle carrière')}</div><div class="cost-line">Coût : <b>${cost} XP</b> ${p.complete ? '(échelon actuel terminé)' : '(échelon actuel non terminé)'}</div><p class="small muted">Si la carrière est dans la bibliothèque, son schéma est repris automatiquement. Tu pourras le vérifier ensuite.</p>`,
+      onOpen: (f) => wireCareerPicker(f),
       actions: [cancel, { label: 'Changer', cls: 'gold', primary: true, onClick: (f) => {
         const name = f.name.value.trim();
         if (!name) { toast('Indique la nouvelle carrière'); return false; }
         const prev = JSON.parse(JSON.stringify(c.career));
-        if (!spend(c, cost, `Nouvelle carrière : ${name}`, { type: 'career', prevCareer: prev })) return false;
-        c.careerHistory.push({ name: prev.name, level: R.careerLevel(c), title: prev.levels[R.careerLevel(c) - 1]?.title });
+        const prevClass = c.className;
+        if (!spend(c, cost, `Nouvelle carrière : ${name}`, { type: 'career', prevCareer: prev, prevClass })) return false;
+        c.careerHistory.push({ name: prev.name, level: R.careerLevel(c), title: prev.levels[R.careerLevel(c) - 1]?.title, className: prevClass });
         c.career = { name, level: 1, path: '', levels: [1, 2, 3, 4].map(() => ({ title: '', status: '', chars: [], skills: [], talents: [] })) };
+        c.className = f.className.value.trim() || R.classOfCareer(name);
+        const tpl = store.findCareer(name);
+        if (tpl) applyTemplate(c, tpl);
         commit();
         setTimeout(() => A.editCareer(), 50);
       } }],
@@ -947,6 +1003,62 @@ const A = {
     toast(store.status.message);
   },
 };
+
+// ---------- Classe et carrière : sélecteur commun ----------
+function careerPickerFields(className, careerName, label = 'Carrière') {
+  return `<div class="field"><label>Classe</label><input name="className" list="classList" value="${esc(className)}" placeholder="ex. Guerriers" autocomplete="off"></div>
+    <div class="field"><label>${label}</label><input name="name" list="careerList" value="${esc(careerName)}" placeholder="ex. Soldat" autocomplete="off"></div>
+    <datalist id="classList">${Object.keys(R.CLASSES).map((k) => `<option value="${esc(k)}">`).join('')}</datalist>
+    <datalist id="careerList"></datalist>
+    <div class="full" id="libHint"></div>`;
+}
+
+function wireCareerPicker(f, onLoad) {
+  const list = f.querySelector('#careerList');
+  const hint = f.querySelector('#libHint');
+  const refreshList = () => {
+    const cls = f.className.value.trim();
+    const fromClass = R.CLASSES[cls] || Object.values(R.CLASSES).flat();
+    const fromLib = store.careers().filter((t) => !cls || !t.className || t.className === cls).map((t) => t.name);
+    list.innerHTML = [...new Set([...fromLib, ...fromClass])].sort((a, b) => a.localeCompare(b, 'fr')).map((n) => `<option value="${esc(n)}">`).join('');
+  };
+  const refreshHint = () => {
+    const name = f.name.value.trim();
+    if (name && !f.className.value.trim()) {
+      const cls = R.classOfCareer(name) || store.findCareer(name)?.className || '';
+      if (cls) { f.className.value = cls; refreshList(); }
+    }
+    const tpl = name && store.findCareer(name);
+    if (!tpl) { hint.innerHTML = ''; return; }
+    const who = store.canEditCareer(tpl) ? 'ton schéma' : `partagé par ${esc(tpl.authorName || 'un camarade')}`;
+    hint.innerHTML = onLoad
+      ? `<div class="cost-line">📚 « ${esc(tpl.name)} » existe dans la bibliothèque (${who}). <button type="button" class="btn gold small" id="loadTpl" style="margin-left:6px">Charger ce schéma</button></div>`
+      : `<div class="cost-line">📚 Le schéma de « ${esc(tpl.name)} » (${who}) sera repris automatiquement.</div>`;
+    hint.querySelector('#loadTpl')?.addEventListener('click', () => { onLoad(tpl); toast('Schéma chargé : vérifie-le puis enregistre'); });
+  };
+  f.className.addEventListener('input', refreshList);
+  f.name.addEventListener('input', refreshHint);
+  refreshList(); refreshHint();
+}
+
+function fillCareerForm(f, tpl) {
+  f.name.value = tpl.name;
+  if (tpl.className) f.className.value = tpl.className;
+  f.path.value = tpl.path || '';
+  tpl.levels.forEach((L, i) => {
+    const n = i + 1;
+    f[`title${n}`].value = L.title || ''; f[`status${n}`].value = L.status || '';
+    f.querySelectorAll(`[name=chars${n}]`).forEach((x) => { x.checked = (L.chars || []).includes(x.value); });
+    f[`skills${n}`].value = (L.skills || []).join('\n'); f[`talents${n}`].value = (L.talents || []).join('\n');
+  });
+}
+
+function applyTemplate(c, tpl) {
+  c.career.name = tpl.name;
+  c.career.path = tpl.path || '';
+  c.career.levels = JSON.parse(JSON.stringify(tpl.levels));
+  if (tpl.className) c.className = tpl.className;
+}
 
 function editListItem(list, i, title, fields, defaults) {
   const c = C(); const item = c[list][i] || { ...defaults };

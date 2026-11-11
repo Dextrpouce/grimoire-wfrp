@@ -67,6 +67,27 @@ export async function pull() {
   return { characters, deleted };
 }
 
+// ----- Bibliothèque de carrières partagée : careers/{id} -----
+// Lisible par tout joueur connecté, modifiable seulement par son auteur.
+export async function pullCareers() {
+  const snap = await fb.getDocs(fb.collection(db, 'careers'));
+  const out = {};
+  snap.forEach((d) => { out[d.id] = { ...d.data(), id: d.id }; });
+  return out;
+}
+
+export async function saveCareer(tpl) {
+  const u = user();
+  const data = { ...tpl, authorUid: u.uid, authorName: u.displayName || u.email || '' };
+  delete data.dirty; delete data.id;
+  await fb.setDoc(fb.doc(db, 'careers', tpl.id), data);
+  return data;
+}
+
+export async function deleteCareer(id) {
+  await fb.deleteDoc(fb.doc(db, 'careers', id));
+}
+
 // Envoie les personnages modifiés depuis la dernière synchro
 export async function push(characters, deleted, since) {
   const c = col();

@@ -33,6 +33,23 @@ export const OTHER_SKILLS = [
   ['Soins aux animaux', 'Int'], ['Voile', 'Ag'],
 ];
 
+// Les 8 classes et leurs carrières (noms traduits de la VO : suggestions, le nom reste modifiable)
+export const CLASSES = {
+  'Érudits': ['Apothicaire', 'Ingénieur', 'Avocat', 'Nonne', 'Médecin', 'Prêtre', 'Érudit', 'Sorcier'],
+  'Bourgeois': ['Agitateur', 'Artisan', 'Mendiant', 'Enquêteur', 'Marchand', 'Ratier', 'Citadin', 'Garde'],
+  'Courtisans': ['Conseiller', 'Artiste', 'Duelliste', 'Émissaire', 'Noble', 'Serviteur', 'Espion', 'Intendant'],
+  'Paysans': ['Bailli', 'Sorcière de village', 'Herboriste', 'Chasseur', 'Mineur', 'Mystique', 'Éclaireur', 'Villageois'],
+  'Itinérants': ['Chasseur de primes', 'Cocher', 'Saltimbanque', 'Flagellant', 'Messager', 'Colporteur', 'Patrouilleur routier', 'Répurgateur'],
+  'Riverains': ['Batelier', 'Pilote fluvial', 'Patrouilleur fluvial', 'Riverain', 'Marin', 'Contrebandier', 'Débardeur', 'Naufrageur'],
+  'Roublards': ['Entremetteur', 'Charlatan', 'Receleur', 'Pilleur de tombes', 'Hors-la-loi', 'Racketteur', 'Voleur', 'Sorcier sauvage'],
+  'Guerriers': ['Cavalier', 'Garde du corps', 'Chevalier', 'Gladiateur', 'Spadassin', 'Soldat', 'Tueur', 'Prêtre guerrier'],
+};
+
+export function classOfCareer(name) {
+  const n = norm(name);
+  return Object.keys(CLASSES).find((k) => CLASSES[k].some((x) => norm(x) === n)) || '';
+}
+
 export const SPECIES = {
   'Humain': { move: 4, sb: true },
   'Nain': { move: 3, sb: true },

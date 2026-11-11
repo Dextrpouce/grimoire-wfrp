@@ -7,6 +7,7 @@ Application pour téléphone et tablette Android qui gère ton personnage de **W
 - **Sac** : richesses (CO/PA/SC avec rendu de monnaie), encombrement, armes (dégâts BF+X calculés), armures (portée/non portée), possessions.
 - **Progrès** : XP actuelle/dépensée/totale, carrière et conditions pour terminer l'échelon, changement d'échelon (100 XP) ou de carrière (100/200 XP), **historique de l'XP** avec annulation.
 - **Mode progression** (bouton ★ XP en haut) : des boutons **+** apparaissent à côté des caractéristiques, compétences et talents **seulement si tu as assez d'XP**. Les boutons dorés suivent ta carrière (coût normal), les rosés sont hors carrière (coût ×2).
+- **Classes et carrières** : choix de la classe (Guerriers, Roublards…), carrières proposées selon la classe, et **bibliothèque de carrières partagée** : un schéma saisi une fois par un joueur est réutilisable par tout le groupe.
 - **Carnet** : identité, ambitions, groupe, sorts et prières, psychologie, mutations, notes.
 - Plusieurs personnages, export/import en fichier JSON.
 
@@ -48,6 +49,12 @@ Tu n'as rien à faire tourner chez toi. Les limites gratuites de Firebase (50 00
        match /users/{uid}/{document=**} {
          allow read, write: if request.auth != null && request.auth.uid == uid;
        }
+       match /careers/{id} {
+         allow read: if request.auth != null;
+         allow create: if request.auth != null && request.resource.data.authorUid == request.auth.uid;
+         allow update: if request.auth != null && resource.data.authorUid == request.auth.uid && request.resource.data.authorUid == request.auth.uid;
+         allow delete: if request.auth != null && resource.data.authorUid == request.auth.uid;
+       }
      }
    }
    ```
@@ -83,7 +90,7 @@ Si tu modifies le même personnage sur deux appareils sans réseau, c'est la ver
 
 1. **Carnet** : nom, race (le mouvement et le calcul des Blessures en dépendent).
 2. **Fiche** : touche chaque caractéristique pour saisir sa valeur initiale et ses augmentations déjà acquises. Fais pareil pour les compétences.
-3. **Progrès** > **Renseigner ma carrière** : recopie depuis ton livre les caractéristiques, compétences et talents de chaque échelon. C'est ce qui permet à l'appli de savoir ce qui coûte le prix normal ou double.
+3. **Progrès** > **Renseigner ma carrière** : choisis la classe, puis la carrière dans la liste proposée. Si un camarade a déjà saisi ce schéma, touche **Charger ce schéma**. Sinon, recopie depuis ton livre les caractéristiques, compétences et talents de chaque échelon, et laisse cochée la case « bibliothèque » pour en faire profiter le groupe. C'est ce schéma qui indique à l'appli ce qui coûte le prix normal ou double.
 4. En fin de séance : **Progrès** > **Gagner de l'XP**, puis active le **mode progression** et dépense tes points avec les boutons **+**.
 5. Une erreur ? Le bouton ↶ de l'historique annule la dernière opération et rembourse l'XP.
 

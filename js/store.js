@@ -10,7 +10,11 @@ function load(key, fallback) {
   try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
 }
 
+const LIB_KEY = 'whfrp4.careers';
 const data = load(DATA_KEY, { characters: {}, deleted: {} });
+// Bibliothèque de carrières : { careers: {id: modèle}, removed: [id] }
+const lib = load(LIB_KEY, { careers: {}, removed: [] });
+const persistLib = () => localStorage.setItem(LIB_KEY, JSON.stringify(lib));
 const meta = load(META_KEY, { currentId: null, firebase: null, dirty: false, lastSync: 0, lastPush: 0 });
 Object.values(data.characters).forEach(upgradeCharacter);
 
@@ -78,6 +82,34 @@ export const store = {
     markDirty();
   },
   save() { markDirty(); },
+
+  // ----- Bibliothèque de carrières -----
+  get userUid() { return cloud.user()?.uid || ''; },
+  careers() { return Object.values(lib.careers).sort((a, b) => a.name.localeCompare(b.name, 'fr')); },
+  findCareer(name) {
+    const n = (name || '').trim().toLowerCase();
+    const all = this.careers().filter((t) => t.name.trim().toLowerCase() === n);
+    return all.find((t) => !t.authorUid || t.authorUid === this.userUid) || all[0] || null;
+  },
+  canEditCareer(t) { return !t.authorUid || t.authorUid === this.userUid; },
+  saveCareer(tpl) {
+    const existing = tpl.id && lib.careers[tpl.id];
+    if (existing && !this.canEditCareer(existing)) tpl.id = null; // copie personnelle d'un modèle d'un autre joueur
+    tpl.id ||= Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+    lib.careers[tpl.id] = { ...existing, ...tpl, updatedAt: Date.now(), dirty: true };
+    persistLib();
+    scheduleSync();
+    return lib.careers[tpl.id];
+  },
+  removeCareer(id) {
+    const t = lib.careers[id];
+    if (!t || !this.canEditCareer(t)) return false;
+    delete lib.careers[id];
+    if (t.authorUid) lib.removed.push(id);
+    persistLib();
+    scheduleSync();
+    return true;
+  },
   exportAll() { return JSON.stringify({ format: 'whfrp4', version: 1, ...data }, null, 2); },
   importAll(json) {
     const incoming = JSON.parse(json);
@@ -118,6 +150,7 @@ export const store = {
       meta.lastSync = Date.now();
       meta.dirty = Object.values(data.characters).some((c) => (c.updatedAt || 0) > start);
       persist();
+      await syncCareers();
       setStatus(meta.dirty ? 'pending' : 'synced', `Synchronisé (${cloud.user().email})`, { reloaded: changed });
     } catch (e) {
       const msg = e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request' ? 'Connexion annulée'
@@ -138,6 +171,33 @@ export const store = {
     setStatus('needauth', 'Déconnecté');
   },
 };
+
+// La bibliothèque ne bloque jamais la synchro des personnages : une erreur ici est ignorée
+async function syncCareers() {
+  try {
+    for (const id of [...lib.removed]) {
+      await cloud.deleteCareer(id);
+      lib.removed = lib.removed.filter((x) => x !== id);
+    }
+    for (const t of Object.values(lib.careers)) {
+      if (!t.dirty) continue;
+      const saved = await cloud.saveCareer(t);
+      lib.careers[t.id] = { ...saved, id: t.id };
+    }
+    const remote = await cloud.pullCareers();
+    for (const [id, t] of Object.entries(remote)) {
+      const local = lib.careers[id];
+      if (!local || (!local.dirty && (t.updatedAt || 0) >= (local.updatedAt || 0))) lib.careers[id] = t;
+    }
+    // Retire les modèles supprimés par leur auteur
+    for (const [id, t] of Object.entries(lib.careers)) {
+      if (t.authorUid && !t.dirty && !remote[id]) delete lib.careers[id];
+    }
+    persistLib();
+  } catch (e) {
+    console.warn('Bibliothèque de carrières non synchronisée :', e.message);
+  }
+}
 
 function markDirty() {
   meta.dirty = true;
