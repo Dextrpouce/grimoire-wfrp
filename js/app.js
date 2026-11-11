@@ -392,8 +392,8 @@ function viewSante(c) {
 }
 
 // Pastilles vertes (atouts) et rouges (défauts) d'une arme
-function qualityTags(w) {
-  const { known, other } = R.parseQualities(w.qualities);
+function qualityTags(w, list) {
+  const { known, other } = R.parseQualities(w.qualities, list);
   if (!known.length && !other.length) return '';
   return `<div class="q-tags">${known.map(({ q, rating }) => `<span class="q-tag ${q.kind === 'atout' ? 'pro' : 'con'}" title="${esc(q.desc)}">${esc(q.name)}${rating ? ` ${rating}` : ''}</span>`).join('')}${other.map((o) => `<span class="q-tag">${esc(o)}</span>`).join('')}</div>`;
 }
@@ -413,7 +413,7 @@ function viewSac(c) {
   }).join('') || '<div class="empty">Aucune arme.</div>';
   const armour = c.armour.map((a, i) => `<div class="list-item"><button class="equip-toggle ${a.equipped ? 'on' : ''}" data-act="toggleEquip" data-i="${i}" aria-label="Portée"></button>
     <span class="li-main" data-act="editArmour" data-i="${i}" role="button"><div class="li-title">${esc(a.name)} <span class="badge soft">${a.ap || 0} PA</span></div>
-    <div class="li-sub">${(a.locations || []).map((k) => R.LOCATIONS.find((l) => l.key === k)?.name).filter(Boolean).join(', ') || 'Aucune localisation'}${a.qualities ? ` · ${esc(a.qualities)}` : ''}${a.enc ? ` · Enc ${a.enc}` : ''}</div></span></div>`).join('') || '<div class="empty">Aucune armure.</div>';
+    <div class="li-sub">${(a.locations || []).map((k) => R.LOCATIONS.find((l) => l.key === k)?.name).filter(Boolean).join(', ') || 'Aucune localisation'}${a.enc ? ` · Enc ${a.enc}` : ''}</div>${qualityTags(a, R.ARMOUR_QUALITIES)}</span></div>`).join('') || '<div class="empty">Aucune armure.</div>';
   const items = c.items.map((it, i) => `<div class="list-item"><span class="li-main" data-act="editItem" data-i="${i}" role="button"><div class="li-title">${esc(it.name)}</div><div class="li-sub">${it.enc ? `Enc ${it.enc}` : ''}${it.notes ? ` ${esc(it.notes)}` : ''}</div></span>
     <span class="qty"><button data-act="qty" data-i="${i}" data-d="-1">−</button><span>${it.qty ?? 1}</span><button data-act="qty" data-i="${i}" data-d="1">+</button></span></div>`).join('') || '<div class="empty">Le sac est vide.</div>';
 
@@ -1075,16 +1075,20 @@ const A = {
   },
   editArmour(el) {
     const c = C(); const i = +el.dataset.i; const a = c.armour[i] || { name: '', locations: [], enc: 1, ap: 1, qualities: '', equipped: true };
+    const parsedA = R.parseQualities(a.qualities, R.ARMOUR_QUALITIES);
     openDialog({
       title: i >= 0 ? a.name : 'Pièce d\'armure',
       body: `<div class="fields">${F.text('name', 'Nom', a.name, 'full', 'autofocus')}${F.num('ap', 'PA', a.ap)}${F.num('enc', 'Enc', a.enc)}
         <div class="field full"><label>Localisations</label><div class="row">${R.LOCATIONS.map((l) => `<label class="chip"><input type="checkbox" name="loc" value="${l.key}" ${a.locations.includes(l.key) ? 'checked' : ''} hidden>${l.name}</label>`).join('')}</div></div>
-        ${F.text('qualities', 'Atouts / Défauts', a.qualities, 'full')}</div>`,
+        </div>
+        <div class="flabel">Atouts et défauts</div>
+        <div class="q-chips">${R.ARMOUR_QUALITIES.map((q) => `<label class="q-chip ${q.kind === 'atout' ? 'pro' : 'con'}" title="${esc(q.desc)}"><input type="checkbox" name="aq" value="${esc(q.name)}" ${parsedA.known.some((k) => k.q === q) ? 'checked' : ''} hidden>${esc(q.name)}</label>`).join('')}</div>
+        ${F.text('other', 'Autres', parsedA.other.join(', '), 'full', 'placeholder="séparés par des virgules"')}`,
       actions: [
         ...(i >= 0 ? [{ label: icon('trash'), cls: 'ghost', onClick: () => { c.armour.splice(i, 1); commit(); } }, 'spacer'] : []),
         cancel,
         { label: 'Enregistrer', primary: true, onClick: (f) => {
-          Object.assign(a, { name: f.name.value.trim() || 'Armure', ap: num(f.ap.value), enc: num(f.enc.value), qualities: f.qualities.value.trim(), locations: [...f.querySelectorAll('[name=loc]:checked')].map((x) => x.value) });
+          Object.assign(a, { name: f.name.value.trim() || 'Armure', ap: num(f.ap.value), enc: num(f.enc.value), qualities: [...[...f.querySelectorAll('[name=aq]:checked')].map((x) => x.value), ...f.other.value.split(',').map((x) => x.trim()).filter(Boolean)].join(', '), locations: [...f.querySelectorAll('[name=loc]:checked')].map((x) => x.value) });
           if (i < 0) c.armour.push(a);
           commit();
         } },
@@ -1626,6 +1630,7 @@ function openRoll({ title, label, base, combat = false, weapon = null, parryWeap
         ${F.num('mod', 'Autre modificateur', 0)}
       </div>
       ${combat && adv ? `<label class="row small" style="margin:0 0 8px"><input type="checkbox" name="useAdv" checked style="width:auto"> Avantage : +${adv * 10}</label>` : ''}
+      ${weapon && R.hasQuality(weapon, 'acc10') ? `<label class="row small" style="margin:0 0 8px"><input type="checkbox" name="useAcc" checked style="width:auto"> ⚙ Minutieux : +10</label>` : ''}
       <div class="roll-target">Cible : <b id="rTarget"></b></div>
       <div class="row" style="margin:10px 0">
         <button type="button" class="btn gold" id="rRandom" style="flex:1">${icon('die')} Lancer les dés</button>
@@ -1634,10 +1639,10 @@ function openRoll({ title, label, base, combat = false, weapon = null, parryWeap
       </div>
       <div id="rResult"></div>`,
     onOpen: (f) => {
-      const target = () => Math.max(0, base + num(f.diff.value) + num(f.mod.value) + (f.useAdv?.checked ? adv * 10 : 0));
+      const target = () => Math.max(0, base + num(f.diff.value) + num(f.mod.value) + (f.useAdv?.checked ? adv * 10 : 0) + (f.useAcc?.checked ? 10 : 0));
       const showTarget = () => { f.querySelector('#rTarget').textContent = target(); };
-      [f.diff, f.mod, f.useAdv].forEach((x) => x?.addEventListener('input', showTarget));
-      [f.useAdv].forEach((x) => x?.addEventListener('change', showTarget));
+      [f.diff, f.mod, f.useAdv, f.useAcc].forEach((x) => x?.addEventListener('input', showTarget));
+      [f.useAdv, f.useAcc].forEach((x) => x?.addEventListener('change', showTarget));
       f.diff.addEventListener('change', showTarget);
       showTarget();
       const show = (roll) => {
@@ -1649,17 +1654,17 @@ function openRoll({ title, label, base, combat = false, weapon = null, parryWeap
         if (weapon && r.success) {
           if (R.hasQuality(weapon, 'hit+1')) { r.sl += 1; notes.push('Précise : +1 DR'); }
           if (R.hasQuality(weapon, 'hit-1')) { r.sl = Math.max(0, r.sl - 1); notes.push('Imprécise : −1 DR'); }
-          if (R.hasQuality(weapon, 'crit10') && units === 0 && !r.critical) { r.critical = true; notes.push('Empaleuse : critique sur un 0'); }
+          if (R.hasQuality(weapon, 'crit10') && units === 0 && !r.critical) { r.critical = true; notes.push('Empalé : critique sur un 0'); }
         }
-        if (parryWeapon && r.success && R.hasQuality(parryWeapon, 'parry+1')) { r.sl += 1; notes.push(`Défensive (${parryWeapon.name}) : +1 DR`); }
+        if (parryWeapon && r.success && R.hasQuality(parryWeapon, 'parry+1')) { r.sl += 1; notes.push(`Défensif (${parryWeapon.name}) : +1 DR`); }
         const verdict = r.critical ? 'Réussite critique !' : r.fumble ? 'Maladresse !' : r.success ? 'Réussite' : 'Échec';
         let extra = notes.length ? `<div class="roll-line q-auto">⚙ ${notes.map(esc).join(' · ')}</div>` : '';
         if (weapon && r.success) {
           const hit = R.hitLocation(r.roll);
           const d = R.weaponDamage(c, weapon);
           let bonus = r.sl; let how = `${r.sl} DR`;
-          if (R.hasQuality(weapon, 'dmgBest') && units > r.sl) { bonus = units; how = `${units} (unités, Dévastatrice)`; }
-          if (R.hasQuality(weapon, 'dmgUnits')) { bonus += units; how += ` + ${units} (unités, Percutante)`; }
+          if (R.hasQuality(weapon, 'dmgBest') && units > r.sl) { bonus = units; how = `${units} (unités, Endommageant)`; }
+          if (R.hasQuality(weapon, 'dmgUnits')) { bonus += units; how += ` + ${units} (unités, Impact)`; }
           extra += `<div class="roll-line">Touché : <b>${hit.name}</b> <span class="muted">(${String(hit.n).padStart(2, '0')})</span></div>
             <div class="roll-line">Dégâts : <b>${d != null ? `${d + bonus}` : `${esc(weapon.damage)} + ${bonus}`}</b> <span class="muted">(${d != null ? `${d} + ${how}` : `arme + ${how}`}) — avant BE et PA de la cible</span></div>
             ${r.critical ? '<div class="roll-line"><b>Coup critique</b> : jet sur la table des blessures critiques.</div>' : ''}`;

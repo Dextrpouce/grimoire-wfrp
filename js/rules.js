@@ -274,33 +274,52 @@ export function weaponSkill(c, w) {
 // Atouts et défauts d'armes courants. « auto » = effet appliqué par le lanceur de dés ;
 // les autres sont rappelés dans le résultat. Résumés courts : voir le livre pour le détail.
 export const WEAPON_QUALITIES = [
+  // Atouts
   { name: 'Précise', kind: 'atout', auto: 'hit+1', desc: '+1 DR quand tu touches.' },
-  { name: 'Dévastatrice', kind: 'atout', auto: 'dmgBest', desc: 'Dégâts : le plus élevé entre les DR et les unités du jet.' },
-  { name: 'Percutante', kind: 'atout', auto: 'dmgUnits', desc: 'Ajoute les unités du jet aux dégâts.' },
-  { name: 'Empaleuse', kind: 'atout', auto: 'crit10', desc: 'Coup critique aussi sur un jet qui finit par 0.' },
-  { name: 'Défensive', kind: 'atout', auto: 'parry+1', desc: '+1 DR quand tu pares avec cette arme.' },
-  { name: 'Rapide', kind: 'atout', desc: 'Frappe vite : avantage pour agir en premier en mêlée.' },
-  { name: 'Perforante', kind: 'atout', desc: 'Traverse mieux les armures (PA réduits).' },
-  { name: 'Taillante', kind: 'atout', desc: "Abîme l'armure ou le bouclier touché." },
-  { name: 'Assommante', kind: 'atout', desc: 'Peut assommer la cible (test pour résister).' },
-  { name: 'Enchevêtrante', kind: 'atout', desc: 'Peut immobiliser la cible.' },
-  { name: 'Bouclier', kind: 'atout', rated: true, desc: 'Aide à parer, y compris les projectiles selon le niveau.' },
-  { name: 'Imprécise', kind: 'défaut', auto: 'hit-1', desc: '−1 DR quand tu touches.' },
-  { name: 'Lente', kind: 'défaut', desc: "L'adversaire se défend plus facilement (+1 DR pour lui)." },
-  { name: 'Inoffensive', kind: 'défaut', desc: "PA de la cible comptés deux fois ; peut n'infliger aucune Blessure." },
-  { name: 'Épuisante', kind: 'défaut', desc: "Fatigue vite : n'apporte son bonus qu'en début de combat." },
-  { name: 'Dangereuse', kind: 'défaut', desc: 'Risque de se blesser sur une maladresse.' },
-  { name: 'Peu fiable', kind: 'défaut', desc: 'Risque de panne ou de casse sur une maladresse.' },
-  { name: 'Recharge', kind: 'défaut', rated: true, desc: 'Doit être rechargée (le niveau indique la difficulté).' },
+  { name: 'Minutieux', kind: 'atout', auto: 'acc10', desc: "+10 au test d'attaque avec cette arme." },
+  { name: 'Endommageant', kind: 'atout', auto: 'dmgBest', aliases: ['Dévastatrice', 'Endommageante'], desc: 'Dégâts : le plus élevé entre les DR et les unités du jet.' },
+  { name: 'Impact', kind: 'atout', auto: 'dmgUnits', aliases: ['Percutante'], desc: 'Ajoute les unités du jet aux dégâts.' },
+  { name: 'Empalé', kind: 'atout', auto: 'crit10', aliases: ['Empaleuse'], desc: 'Coup critique aussi sur un jet qui finit par 0.' },
+  { name: 'Défensif', kind: 'atout', auto: 'parry+1', aliases: ['Défensive'], desc: '+1 DR quand tu pares avec cette arme.' },
+  { name: 'Rapide', kind: 'atout', desc: "Frappe quand tu veux dans le round ; −10 pour s'en défendre (sauf arme Rapide)." },
+  { name: 'Pénétrant', kind: 'atout', aliases: ['Perforante'], desc: 'Ignore les PA non métalliques et 1 PA des autres armures.' },
+  { name: 'Entailler', kind: 'atout', aliases: ['Taillante'], desc: "Abîme d'un point l'armure ou le bouclier touché." },
+  { name: 'Contondante', kind: 'atout', aliases: ['Assommante'], desc: 'Coup à la tête : test opposé pour étourdir la cible.' },
+  { name: 'Enchevêtré', kind: 'atout', aliases: ['Enchevêtrante'], desc: 'La cible touchée est empêtrée ; tu choisis quand la relâcher.' },
+  { name: 'Enveloppante', kind: 'atout', desc: 'Difficile à parer : −1 DR aux parades contre cette arme.' },
+  { name: 'Distrayante', kind: 'atout', desc: "Au lieu de blesser, fait reculer l'adversaire d'1 m par DR." },
+  { name: 'Piège Lame', kind: 'atout', desc: 'Sur un critique en défense contre une lame, tu peux la bloquer ou la briser.' },
+  { name: 'Incassable', kind: 'atout', desc: "Ne casse pas, ne rouille pas, ne s'émousse pas." },
+  { name: 'Pistolet', kind: 'atout', desc: 'Utilisable au corps à corps.' },
+  { name: 'Poudre Noire', kind: 'atout', desc: 'La cible visée teste son Calme (+20) ou devient Brisée.' },
+  { name: 'Explosion', kind: 'atout', rated: true, desc: "Touche tout le monde autour du point d'impact (rayon selon le niveau)." },
+  { name: 'Répétition', kind: 'atout', rated: true, desc: 'Plusieurs tirs avant de devoir recharger (selon le niveau).' },
+  { name: 'Bouclier', kind: 'atout', rated: true, desc: 'En parade, donne des PA sur tout le corps ; dès le niveau 2, pare aussi les projectiles.' },
+  // Défauts
+  { name: 'Imprécise', kind: 'défaut', auto: 'hit-1', desc: '−1 DR quand tu attaques avec.' },
+  { name: 'Lent', kind: 'défaut', aliases: ['Lente'], desc: "Agit toujours en dernier ; l'adversaire a +1 DR pour se défendre." },
+  { name: 'Inoffensif', kind: 'défaut', aliases: ['Inoffensive'], desc: "PA de la cible doublés ; pas de minimum d'1 Blessure." },
+  { name: 'Épuisant', kind: 'défaut', aliases: ['Épuisante'], desc: "Impact et Endommageant ne jouent qu'au tour où tu charges." },
+  { name: 'Dangereuses', kind: 'défaut', aliases: ['Dangereuse'], desc: "Maladresse aussi sur un 9 aux unités en cas d'échec." },
+  { name: 'Rechargement', kind: 'défaut', rated: true, aliases: ['Recharge'], desc: 'Test étendu pour recharger (DR à atteindre selon le niveau).' },
+];
+
+// Qualités d'armure (résumés courts : voir le livre pour le détail)
+export const ARMOUR_QUALITIES = [
+  { name: 'Flexible', kind: 'atout', desc: 'Peut se porter sous une armure non flexible : les deux comptent.' },
+  { name: 'Impénétrable', kind: 'atout', desc: 'Ignore les critiques obtenus sur un double impair (11, 33…).' },
+  { name: 'Partiel', kind: 'défaut', desc: "Sur un jet pair ou un critique, l'attaquant ignore ces PA." },
+  { name: 'Points Faibles', kind: 'défaut', desc: 'Contre une arme Empalé qui fait un critique, ces PA sont ignorés.' },
 ];
 
 // Lit « Défensive, Recharge 2, Pointue » → { known: [{ q, rating }], other: ['Pointue'] }
-export function parseQualities(text) {
+export function parseQualities(text, list = WEAPON_QUALITIES) {
   const known = [];
   const other = [];
   for (const raw of String(text || '').split(/[,;]/).map((x) => x.trim()).filter(Boolean)) {
     const m = raw.match(/^(.*?)\s*(\d+)?$/);
-    const q = WEAPON_QUALITIES.find((x) => norm(x.name) === norm(m[1]));
+    const n = norm(m[1]);
+    const q = list.find((x) => norm(x.name) === n || (x.aliases || []).some((al) => norm(al) === n));
     if (q) known.push({ q, rating: m[2] ? +m[2] : null });
     else other.push(raw);
   }
