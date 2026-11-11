@@ -56,8 +56,8 @@ const ui = {
 };
 
 const TABS = [
-  ['fiche', 'Fiche', 'sheet'], ['sante', 'Combat', 'sword'], ['sac', 'Sac', 'bag'],
-  ['prog', 'Progrès', 'up'], ['carnet', 'Carnet', 'book'], ['magie', 'Magie', 'wand'], ['biblio', 'Biblio', 'library'],
+  ['fiche', 'Fiche', 'sheet'], ['sante', 'Combat', 'sword'], ['magie', 'Magie', 'wand'], ['sac', 'Sac', 'bag'],
+  ['prog', 'Progrès', 'up'], ['carnet', 'Carnet', 'book'], ['biblio', 'Biblio', 'library'],
 ];
 
 // ================= Champs de formulaire =================
