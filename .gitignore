@@ -1,4 +1,4 @@
 *.pdf
 .claude/
 qr-*.svg
-mes-carrieres/
+imports/
