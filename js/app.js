@@ -281,7 +281,7 @@ function viewSante(c) {
     return `<div class="attack" data-act="rollAttack" data-i="${i}" role="button">
       <div class="atk-main"><div class="li-title">${esc(w.name)}</div>
         <div class="li-sub">${esc(ws.label)}${w.reach ? ` · ${esc(w.reach)}` : ''}</div>
-        ${detail}${qualityTags(w)}${talentTags(c, R.isRangedWeapon(w) ? tg.ranged : tg.melee)}</div>
+        ${detail}${qualityTags(w)}${talentTags(c, ws.ranged ? tg.ranged : tg.melee)}</div>
       <div class="atk-num"><span class="atk-val ${ws.trained ? '' : 'untrained'} ${eff !== ws.value ? 'boosted' : ''}">${eff}</span><span class="atk-lbl">${ws.ranged ? 'Tir' : 'Attaque'}</span></div>
       <div class="atk-num"><span class="atk-val dmg">${d != null ? d : esc(w.damage || '–')}</span><span class="atk-lbl">Dégâts</span></div>
       <span class="atk-die">${icon('die')}</span>
@@ -290,9 +290,9 @@ function viewSante(c) {
 
   // Défense et ordre d'action
   const dodge = c.skills.find((s) => R.norm(s.name) === 'esquive');
-  const melee = c.weapons.filter((w) => !R.isRangedWeapon(w)).sort((a, b) => R.weaponSkill(c, b).value - R.weaponSkill(c, a).value || R.hasQuality(b, 'parry+1') - R.hasQuality(a, 'parry+1')).map((w) => R.weaponSkill(c, w))[0]
+  const melee = c.weapons.filter((w) => !R.weaponSkill(c, w).ranged).sort((a, b) => R.weaponSkill(c, b).value - R.weaponSkill(c, a).value || R.hasQuality(b, 'parry+1') - R.hasQuality(a, 'parry+1')).map((w) => R.weaponSkill(c, w))[0]
     || R.weaponSkill(c, { group: 'Base', reach: 'Moyenne' });
-  const parryW = c.weapons.filter((w) => !R.isRangedWeapon(w)).sort((a, b) => R.weaponSkill(c, b).value - R.weaponSkill(c, a).value || R.hasQuality(b, 'parry+1') - R.hasQuality(a, 'parry+1'))[0];
+  const parryW = c.weapons.filter((w) => !R.weaponSkill(c, w).ranged).sort((a, b) => R.weaponSkill(c, b).value - R.weaponSkill(c, a).value || R.hasQuality(b, 'parry+1') - R.hasQuality(a, 'parry+1'))[0];
   const parryDef = !!parryW && R.hasQuality(parryW, 'parry+1');
   const defense = `<div class="stats-row def-row">
       <div class="stat roll" data-act="rollSkill" data-id="${dodge?.id || ''}" role="button"><div class="sk">Esquive</div><div class="sv">${dodge ? R.skillValue(c, dodge) + adv * 10 : '–'}</div>${dodge && adv ? `<div class="def-bonus">${R.skillValue(c, dodge)} +${adv * 10} Av.</div>` : ''}</div>
@@ -936,7 +936,7 @@ const A = {
   },
   rollParry() {
     const c = C();
-    const best = c.weapons.filter((w) => !R.isRangedWeapon(w)).map((w) => ({ w, s: R.weaponSkill(c, w) }))
+    const best = c.weapons.filter((w) => !R.weaponSkill(c, w).ranged).map((w) => ({ w, s: R.weaponSkill(c, w) }))
       .sort((a, b) => b.s.value - a.s.value || R.hasQuality(b.w, 'parry+1') - R.hasQuality(a.w, 'parry+1'))[0];
     const s = best?.s || R.weaponSkill(c, { group: 'Base', reach: 'Moyenne' });
     openRoll({ title: `Parade${best ? ` : ${best.w.name}` : ''}`, label: s.label, base: s.value, combat: true, parryWeapon: best?.w || null });
@@ -1115,18 +1115,40 @@ const A = {
         <input type="checkbox" name="q" value="${esc(q.name)}" ${cur ? 'checked' : ''} hidden>${esc(q.name)}${q.auto ? ' ⚙' : ''}
         ${q.rated ? `<input type="number" inputmode="numeric" name="qr_${esc(q.name)}" value="${cur?.rating ?? ''}" placeholder="n" class="q-rate">` : ''}</label>`;
     };
+    const combatSkills = c.skills.filter((sk) => /^(corps a corps|projectiles)/.test(R.norm(sk.name)))
+      .sort((a, b) => R.skillLabel(a).localeCompare(R.skillLabel(b), 'fr'));
     const pros = R.WEAPON_QUALITIES.filter((q) => q.kind === 'atout');
     const cons = R.WEAPON_QUALITIES.filter((q) => q.kind === 'défaut');
     openDialog({
       title: i >= 0 ? w.name : 'Arme',
       body: `<div class="fields">${F.text('name', 'Nom', w.name, 'full', 'autofocus')}${F.text('group', 'Groupe', w.group, '', 'placeholder="Base, Escrime, Arc…"')}${F.num('enc', 'Enc', w.enc)}
-        ${F.text('reach', 'Allonge / Portée', w.reach, '', 'placeholder="Moyenne, ou 50"')}${F.text('damage', 'Dégâts', w.damage, '', 'placeholder="BF+4"')}</div>
+        ${F.text('reach', 'Allonge / Portée', w.reach, '', 'placeholder="Moyenne, ou 50"')}${F.text('damage', 'Dégâts', w.damage, '', 'placeholder="BF+4"')}
+        <div class="field full"><label>Compétence utilisée</label>
+          <select name="skillId">
+            <option value="">Automatique (d'après le groupe)</option>
+            ${combatSkills.map((sk) => `<option value="${sk.id}" ${sk.id === w.skillId ? 'selected' : ''}>${esc(R.skillLabel(sk))} — ${R.skillValue(c, sk)}${sk.basic || +sk.advances > 0 ? '' : ' (non formé)'}</option>`).join('')}
+            <option value="__new">Nouvelle spécialité…</option>
+          </select>
+          <div class="row" id="newSkill" hidden style="margin-top:6px">
+            <select name="newKind" style="flex:1"><option value="Corps à corps">Corps à corps (CC)</option><option value="Projectiles">Projectiles (CT)</option></select>
+            <input name="newSpec" placeholder="Spécialité, ex. Escrime, Arc" style="flex:1.4">
+          </div>
+          <div class="small muted" id="autoSkill" style="margin-top:4px"></div>
+        </div></div>
         <div class="flabel">Atouts</div><div class="q-chips">${pros.map(chip).join('')}</div>
         <div class="flabel" style="margin-top:8px">Défauts</div><div class="q-chips">${cons.map(chip).join('')}</div>
         <div class="q-help">Touche une pastille pour la cocher et voir son effet.</div>
         ${F.text('other', 'Autres atouts / défauts', parsed.other.join(', '), 'full', 'placeholder="séparés par des virgules"')}
         <p class="small muted" style="margin:0">⚙ = effet appliqué automatiquement par le lanceur de dés. Les autres s'affichent en rappel.</p>`,
-      onOpen: (f) => wireQualityHelp(f, R.WEAPON_QUALITIES),
+      onOpen: (f) => {
+        wireQualityHelp(f, R.WEAPON_QUALITIES);
+        const upd = () => {
+          f.querySelector('#newSkill').hidden = f.skillId.value !== '__new';
+          const auto = R.weaponSkill(c, { ...w, skillId: null, group: f.group.value, reach: f.reach.value });
+          f.querySelector('#autoSkill').textContent = f.skillId.value ? '' : `Automatique : ${auto.label} (${auto.value})`;
+        };
+        f.skillId.addEventListener('change', upd); f.group.addEventListener('input', upd); f.reach.addEventListener('input', upd); upd();
+      },
       actions: [
         ...(i >= 0 ? [{ label: icon('trash'), cls: 'ghost', onClick: () => { c.weapons.splice(i, 1); commit(); } }, 'spacer'] : []),
         cancel,
@@ -1136,6 +1158,16 @@ const A = {
             return r ? `${x.value} ${r}` : x.value;
           });
           const other = f.other.value.split(',').map((x) => x.trim()).filter(Boolean);
+          // Compétence : existante, nouvelle spécialité (créée à 0 augmentation), ou automatique
+          let skillId = f.skillId.value || null;
+          if (skillId === '__new') {
+            const kind = f.newKind.value; const spec = f.newSpec.value.trim();
+            if (!spec) { toast('Indique la spécialité (ex. Escrime)'); return false; }
+            let sk = c.skills.find((x) => R.norm(x.name) === R.norm(kind) && R.norm(x.spec) === R.norm(spec));
+            if (!sk) { sk = { id: R.uid(), name: kind, spec, char: kind === 'Projectiles' ? 'CT' : 'CC', advances: 0, basic: false }; c.skills.push(sk); toast(`Compétence ${kind} (${spec}) ajoutée à ta fiche`); }
+            skillId = sk.id;
+          }
+          w.skillId = skillId;
           Object.assign(w, {
             name: f.name.value.trim() || 'Arme', group: f.group.value.trim(), enc: num(f.enc.value),
             reach: f.reach.value.trim(), damage: f.damage.value.trim(), qualities: [...sel, ...other].join(', '),

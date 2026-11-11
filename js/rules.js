@@ -254,8 +254,16 @@ export function isRangedWeapon(w) {
   return RANGED_GROUPS.includes(norm(w.group));
 }
 
-// Compétence utilisée par une arme : Corps à corps (Groupe) ou Projectiles (Groupe)
+// Compétence utilisée par une arme : celle choisie dans la fenêtre d'arme (w.skillId),
+// sinon devinée d'après le groupe : Corps à corps (Groupe) ou Projectiles (Groupe)
 export function weaponSkill(c, w) {
+  const chosen = w.skillId && c.skills.find((s) => s.id === w.skillId);
+  if (chosen) {
+    return {
+      ranged: norm(chosen.name).startsWith('projectiles'), skill: chosen, value: skillValue(c, chosen),
+      label: skillLabel(chosen), trained: chosen.basic || +chosen.advances > 0, chosen: true,
+    };
+  }
   const ranged = isRangedWeapon(w);
   const base = ranged ? 'projectiles' : 'corps a corps';
   const group = norm(w.group);
