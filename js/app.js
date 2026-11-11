@@ -527,7 +527,8 @@ function viewCarnet(c) {
         <div class="fields">
           <div class="field full"><label>Nom</label>${bind('name', c.name, 'text', 'data-rerender')}</div>
           <div class="field"><label>Race</label><select data-bind="species" data-rerender>${sp.map((s) => `<option ${s === c.species ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
-          <div class="field"><label>Classe</label>${bind('className', c.className, 'text', 'list="classListCarnet" data-rerender')}<datalist id="classListCarnet">${Object.keys(R.CLASSES).map((k) => `<option value="${esc(k)}">`).join('')}</datalist></div>
+          <div class="field"><label>Carrière</label>${careerSelect(c.career.name, 'carnetCareer')}</div>
+          <div class="field"><label>Classe</label><div class="cls-auto">${esc(c.className || '—')}</div></div>
           <div class="field"><label>Âge</label>${bind('age', c.age)}</div>
           <div class="field"><label>Taille</label>${bind('height', c.height)}</div>
           <div class="field"><label>Cheveux</label>${bind('hair', c.hair)}</div>
@@ -1211,29 +1212,103 @@ const A = {
 };
 
 // ---------- Classe et carrière : sélecteur commun ----------
+// Liste déroulante des 8 classes ; « Autre… » affiche un champ libre. La valeur réelle est dans input[name=className].
+function classPicker(value, inputAttrs = '') {
+  const known = Object.keys(R.CLASSES);
+  const custom = !!value && !known.includes(value);
+  return `<select name="classPick" data-classpick>
+      <option value="" ${!value ? 'selected' : ''}>— Choisir une classe —</option>
+      ${known.map((k) => `<option value="${esc(k)}" ${k === value ? 'selected' : ''}>${esc(k)}</option>`).join('')}
+      <option value="__other" ${custom ? 'selected' : ''}>Autre…</option>
+    </select>
+    <input name="className" value="${esc(value)}" placeholder="Nom de la classe" autocomplete="off" ${custom ? '' : 'hidden'} ${inputAttrs} style="margin-top:6px">`;
+}
+
+document.addEventListener('change', (e) => {
+  const sel = e.target.closest?.('[data-classpick]');
+  if (!sel) return;
+  const input = sel.parentElement.querySelector('input[name=className]');
+  if (sel.value === '__other') { input.hidden = false; input.value = ''; input.focus(); return; }
+  input.hidden = true;
+  input.value = sel.value;
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+});
+
+// Met la liste déroulante à jour quand la classe est remplie automatiquement (depuis la carrière)
+function syncClassPick(f) {
+  const sel = f.querySelector('[data-classpick]');
+  if (!sel) return;
+  const v = f.className.value;
+  const known = Object.keys(R.CLASSES).includes(v);
+  sel.value = !v ? '' : known ? v : '__other';
+  f.className.hidden = !v || known;
+}
+
+// Toutes les carrières connues, rangées par classe (liste de l'appli + bibliothèque) : [[classe, [noms]]]
+function careerGroups() {
+  const groups = Object.entries(R.CLASSES).map(([cls, list]) => [cls, [...list]]);
+  const others = [];
+  for (const t of store.careers()) {
+    const g = groups.find(([cls]) => cls === t.className);
+    const target = g ? g[1] : others;
+    if (!target.some((n) => R.norm(n) === R.norm(t.name))) target.push(t.name);
+  }
+  if (others.length) groups.push(['Autres', others]);
+  return groups.map(([cls, names]) => [cls, names.sort((a, b) => a.localeCompare(b, 'fr'))]);
+}
+const isKnownCareer = (name) => careerGroups().some(([, names]) => names.some((n) => R.norm(n) === R.norm(name)));
+const classForCareer = (name) => R.classOfCareer(name) || store.findCareer(name)?.className || '';
+
+function careerSelect(value, name = 'careerPick') {
+  const custom = !!value && !isKnownCareer(value);
+  return `<select name="${name}" data-careerpick>
+      <option value="" ${!value ? 'selected' : ''}>— Choisir une carrière —</option>
+      ${careerGroups().map(([cls, names]) => `<optgroup label="${esc(cls)}">${names.map((n) => `<option value="${esc(n)}" ${R.norm(n) === R.norm(value) ? 'selected' : ''}>${esc(n)}${store.findCareer(n) ? ' 📚' : ''}</option>`).join('')}</optgroup>`).join('')}
+      <option value="__other" ${custom ? 'selected' : ''}>Autre carrière…</option>
+    </select>`;
+}
+
 function careerPickerFields(className, careerName, label = 'Carrière') {
-  return `<div class="field"><label>Classe</label><input name="className" list="classList" value="${esc(className)}" placeholder="ex. Guerriers" autocomplete="off"></div>
-    <div class="field"><label>${label}</label><input name="name" list="careerList" value="${esc(careerName)}" placeholder="ex. Soldat" autocomplete="off"></div>
-    <datalist id="classList">${Object.keys(R.CLASSES).map((k) => `<option value="${esc(k)}">`).join('')}</datalist>
-    <datalist id="careerList"></datalist>
+  const custom = !!careerName && !isKnownCareer(careerName);
+  return `<div class="field full"><label>${label}</label>${careerSelect(careerName)}
+      <input name="name" value="${esc(careerName)}" placeholder="Nom de la carrière" autocomplete="off" ${custom ? '' : 'hidden'} style="margin-top:6px"></div>
+    <div class="field full"><label>Classe</label>
+      <div id="classAuto" class="cls-auto" ${custom ? 'hidden' : ''}>${esc(className || classForCareer(careerName) || '—')} <span class="small muted">(déduite de la carrière)</span></div>
+      <div id="classManual" ${custom ? '' : 'hidden'}>${classPicker(className)}</div></div>
     <div class="full" id="libHint"></div>`;
 }
 
+// Met la liste des carrières à jour quand le nom est rempli depuis la bibliothèque
+function syncCareerPick(f) {
+  const sel = f.querySelector('[data-careerpick]');
+  if (!sel) return;
+  const known = isKnownCareer(f.name.value);
+  sel.value = !f.name.value ? '' : known ? [...sel.options].find((o) => R.norm(o.value) === R.norm(f.name.value))?.value : '__other';
+  f.name.hidden = known || !f.name.value;
+}
+
 function wireCareerPicker(f, onLoad) {
-  const list = f.querySelector('#careerList');
   const hint = f.querySelector('#libHint');
-  const refreshList = () => {
-    const cls = f.className.value.trim();
-    const fromClass = R.CLASSES[cls] || Object.values(R.CLASSES).flat();
-    const fromLib = store.careers().filter((t) => !cls || !t.className || t.className === cls).map((t) => t.name);
-    list.innerHTML = [...new Set([...fromLib, ...fromClass])].sort((a, b) => a.localeCompare(b, 'fr')).map((n) => `<option value="${esc(n)}">`).join('');
+  const sel = f.querySelector('[data-careerpick]');
+  const showClass = (custom) => {
+    f.querySelector('#classAuto').hidden = custom;
+    f.querySelector('#classManual').hidden = !custom;
+    if (!custom) f.querySelector('#classAuto').innerHTML = `${esc(f.className.value || '—')} <span class="small muted">(déduite de la carrière)</span>`;
   };
+  sel.addEventListener('change', () => {
+    if (sel.value === '__other') {
+      f.name.hidden = false; f.name.value = ''; f.name.focus();
+      showClass(true);
+    } else {
+      f.name.hidden = true; f.name.value = sel.value;
+      f.className.value = classForCareer(sel.value); syncClassPick(f);
+      showClass(false);
+    }
+    refreshHint();
+  });
   const refreshHint = () => {
     const name = f.name.value.trim();
-    if (name && !f.className.value.trim()) {
-      const cls = R.classOfCareer(name) || store.findCareer(name)?.className || '';
-      if (cls) { f.className.value = cls; refreshList(); }
-    }
     const tpl = name && store.findCareer(name);
     if (!tpl) { hint.innerHTML = ''; return; }
     const who = store.canEditCareer(tpl) ? 'ton schéma' : `partagé par ${esc(tpl.authorName || 'un camarade')}`;
@@ -1242,14 +1317,14 @@ function wireCareerPicker(f, onLoad) {
       : `<div class="cost-line">📚 Le schéma de « ${esc(tpl.name)} » (${who}) sera repris automatiquement.</div>`;
     hint.querySelector('#loadTpl')?.addEventListener('click', () => { onLoad(tpl); toast('Schéma chargé : vérifie-le puis enregistre'); });
   };
-  f.className.addEventListener('input', refreshList);
   f.name.addEventListener('input', refreshHint);
-  refreshList(); refreshHint();
+  refreshHint();
 }
 
 function fillCareerForm(f, tpl) {
   f.name.value = tpl.name;
-  if (tpl.className) f.className.value = tpl.className;
+  syncCareerPick(f);
+  if (tpl.className) { f.className.value = tpl.className; syncClassPick(f); }
   f.path.value = tpl.path || '';
   tpl.levels.forEach((L, i) => {
     const n = i + 1;
@@ -1307,6 +1382,18 @@ $app.addEventListener('input', (e) => {
 });
 $app.addEventListener('change', (e) => {
   const el = e.target;
+  // Carrière choisie dans le Carnet : la classe et le schéma (si présent en bibliothèque) suivent
+  if (el.name === 'carnetCareer') {
+    const c = C();
+    if (el.value === '__other') { el.value = c.career.name && isKnownCareer(c.career.name) ? [...el.options].find((o) => R.norm(o.value) === R.norm(c.career.name))?.value : ''; A.editCareer(); return; }
+    c.career.name = el.value;
+    c.className = classForCareer(el.value);
+    const tpl = store.findCareer(el.value);
+    if (tpl) applyTemplate(c, tpl);
+    commit();
+    toast(tpl ? `Carrière ${tpl.name} : schéma chargé depuis la bibliothèque` : `Carrière : ${el.value || 'aucune'}`);
+    return;
+  }
   if (!el.dataset.bind) return;
   setPath(C(), el.dataset.bind, el.hasAttribute('data-num') ? num(el.value) : el.value);
   commit(el.hasAttribute('data-rerender') || el.hasAttribute('data-num'));
