@@ -432,3 +432,23 @@ label.chip:has(input:checked) { background: var(--blood); color: #fbe9d3; border
 @keyframes scareOut { to { opacity: 0; } }
 @keyframes chaosZoom { from { transform: scale(1) translateY(3%); } to { transform: scale(1.35) translateY(-2%); } }
 @keyframes textIn { from { opacity: 0; } }
+
+/* ---------- Effet de purification : image de Sigmar qui recule dans la lumière ---------- */
+.scare.holy { background: #fff8e0; }
+.scare.holy .scare-img { animation: holyReveal 3.4s cubic-bezier(.2, .7, .3, 1) forwards; transform-origin: 50% 30%; }
+.scare.holy::after { background: radial-gradient(circle at 50% 30%, transparent 40%, rgba(255, 236, 180, .55) 100%); }
+.holy-light {
+  position: absolute; inset: 0; pointer-events: none; mix-blend-mode: screen;
+  background: radial-gradient(circle at 50% 28%, rgba(255, 244, 200, .95), rgba(255, 210, 120, .35) 30%, transparent 60%);
+  animation: holyGlow 3.4s ease-out forwards;
+}
+.scare.holy .scare-text { color: #fff6dc; text-shadow: 0 0 14px #b8860b, 0 0 3px #3a2a08; }
+.scare.holy .scare-count { color: #fff2c4; text-shadow: 0 0 6px #6b4c17; }
+.scare.holy.gentle .holy-light { animation: none; opacity: .5; }
+@keyframes holyReveal {
+  from { transform: scale(1.35) translateY(4%); filter: brightness(2.4) saturate(.6); }
+  to { transform: scale(1.02) translateY(0); filter: brightness(1.05) saturate(1.1); }
+}
+@keyframes holyGlow { 0% { opacity: 1; } 35% { opacity: .85; } 100% { opacity: .35; } }
+.scare.holy .scare-text { background: rgba(35, 24, 6, .55); padding: 10px 14px; border-radius: 12px; backdrop-filter: blur(2px); }
+.scare.holy .scare-count { background: rgba(35, 24, 6, .45); padding: 4px 12px; border-radius: 999px; left: 50%; right: auto; transform: translateX(-50%); }

@@ -984,8 +984,10 @@ const A = {
   healCrit(el) { const c = C(); confirmDialog('Blessure guérie ?', `Retirer « ${esc(c.health.criticals[+el.dataset.i].name)} » ?`, 'Guérie', () => { c.health.criticals.splice(+el.dataset.i, 1); commit(); }); },
   step(el) {
     const c = C(); const p = el.dataset.p; const d = +el.dataset.d;
-    c[p] = Math.max(0, (+c[p] || 0) + d); commit();
+    const before = +c[p] || 0;
+    c[p] = Math.max(0, before + d); commit();
     if (p === 'corruption' && d > 0) corruptionScare(c);
+    if (p === 'corruption' && d < 0 && before > 0) purifyEffect(c);
   },
   toggleScare() {
     const off = localStorage.getItem('whfrp4.scare') === 'off';
@@ -1308,8 +1310,9 @@ const A = {
         </div>
         <h3>Ambiance</h3>
         <div class="row">
-          <label class="row small" style="flex:1"><input type="checkbox" id="scareToggle" ${localStorage.getItem('whfrp4.scare') === 'off' ? '' : 'checked'} style="width:auto"> Effet de surprise quand la Corruption augmente</label>
-          <button type="button" class="btn ghost small" id="scareTry">Essayer</button>
+          <label class="row small" style="flex:1"><input type="checkbox" id="scareToggle" ${localStorage.getItem('whfrp4.scare') === 'off' ? '' : 'checked'} style="width:auto"> Effets quand la Corruption monte (Chaos) ou baisse (Sigmar)</label>
+          <button type="button" class="btn ghost small" id="scareTry">Chaos</button>
+          <button type="button" class="btn ghost small" id="purifyTry">Sigmar</button>
         </div>
         <h3>Personnage</h3>
         <div class="row">
@@ -1338,6 +1341,10 @@ const A = {
         f.querySelector('#scareTry').onclick = () => {
           if (!f.querySelector('#scareToggle').checked) { toast("Active d'abord l'effet"); return; }
           dlg.close(); corruptionScare(C());
+        };
+        f.querySelector('#purifyTry').onclick = () => {
+          if (!f.querySelector('#scareToggle').checked) { toast("Active d'abord l'effet"); return; }
+          dlg.close(); purifyEffect(C());
         };
         const file = f.querySelector('#importFile');
         f.querySelector('[data-m=import]').onclick = () => file.click();
@@ -1475,6 +1482,85 @@ function corruptionScare(c) {
   const close = () => { el.classList.add('out'); setTimeout(() => el.remove(), 400); };
   el.addEventListener('click', close);
   setTimeout(close, over ? 3600 : 2600);
+}
+
+// ---------- Effet de purification (la Corruption baisse) ----------
+const BLESSINGS = [
+  'Une lumière chasse les ténèbres…', 'Ton âme s\'allège d\'un poids ancien…',
+  'Le marteau du Dieu-Roi veille sur toi…', 'Les ombres reculent devant ta foi…',
+  'Une chaleur dorée apaise ton esprit…', 'Le murmure se tait. Enfin.',
+];
+
+function angelicSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const t = ctx.currentTime;
+    const dur = 4.2;
+    // Réverbération de cathédrale : longue et douce
+    const rev = ctx.createConvolver();
+    const ir = ctx.createBuffer(2, ctx.sampleRate * 4.5, ctx.sampleRate);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = ir.getChannelData(ch);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2);
+    }
+    rev.buffer = ir;
+    const out = ctx.createGain(); out.gain.value = 0.5; out.connect(ctx.destination);
+    const wet = ctx.createGain(); wet.gain.value = 0.9; rev.connect(wet); wet.connect(out);
+    const bus = ctx.createGain(); bus.gain.value = 0.6; bus.connect(out); bus.connect(rev);
+
+    // Chœur : accord de ré majeur (avec la neuvième), voix douces légèrement désaccordées et vibrato
+    const choirF = ctx.createBiquadFilter(); choirF.type = 'lowpass'; choirF.frequency.value = 2200; choirF.connect(bus);
+    const choirG = ctx.createGain();
+    choirG.gain.setValueAtTime(0.0001, t);
+    choirG.gain.exponentialRampToValueAtTime(0.16, t + 1.2);
+    choirG.gain.setValueAtTime(0.16, t + 2.4);
+    choirG.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    choirG.connect(choirF);
+    for (const f of [146.8, 220, 293.7, 370, 440, 659.3]) {
+      for (const det of [-6, 6]) {
+        const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = f; o.detune.value = det;
+        const vib = ctx.createOscillator(); vib.frequency.value = 4.5 + Math.random();
+        const vibG = ctx.createGain(); vibG.gain.value = f * 0.006; vib.connect(vibG); vibG.connect(o.frequency);
+        o.connect(choirG); o.start(t); vib.start(t); o.stop(t + dur); vib.stop(t + dur);
+      }
+    }
+    // « Aaah » : formant de voyelle sur le chœur
+    const formant = ctx.createBiquadFilter(); formant.type = 'peaking'; formant.frequency.value = 800; formant.gain.value = 8; formant.Q.value = 2;
+    choirF.disconnect(); choirF.connect(formant); formant.connect(bus);
+
+    // Clochettes cristallines : arpège montant qui scintille
+    [1174.7, 1480, 1760, 2349.3, 2960].forEach((f, i) => {
+      const st = t + 0.35 + i * 0.22;
+      const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f;
+      const o2 = ctx.createOscillator(); o2.type = 'sine'; o2.frequency.value = f * 2.76;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, st);
+      g.gain.exponentialRampToValueAtTime(0.12, st + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, st + 2);
+      const g2 = ctx.createGain(); g2.gain.value = 0.3;
+      o.connect(g); o2.connect(g2); g2.connect(g); g.connect(bus);
+      o.start(st); o2.start(st); o.stop(st + 2.1); o2.stop(st + 2.1);
+    });
+    setTimeout(() => ctx.close(), (dur + 4.5) * 1000);
+  } catch { /* pas de son disponible */ }
+}
+
+function purifyEffect(c) {
+  if (localStorage.getItem('whfrp4.scare') === 'off') return;
+  const gentle = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  document.getElementById('scare')?.remove();
+  const el = document.createElement('div');
+  el.id = 'scare';
+  el.className = `scare holy ${gentle ? 'gentle' : ''}`;
+  el.innerHTML = `<img class="scare-img" src="img/sigmar.webp" alt="">
+    <div class="holy-light"></div>
+    <div class="scare-text">${esc(BLESSINGS[Math.floor(Math.random() * BLESSINGS.length)])}</div>
+    <div class="scare-count">Corruption ${c.corruption} / ${R.corruptionMax(c)}</div>`;
+  document.body.appendChild(el);
+  if (!gentle) angelicSound();
+  const close = () => { el.classList.add('out'); setTimeout(() => el.remove(), 500); };
+  el.addEventListener('click', close);
+  setTimeout(close, 3400);
 }
 
 // ---------- Lanceur de dés ----------
