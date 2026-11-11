@@ -3,7 +3,7 @@
 Application pour téléphone et tablette Android qui gère ton personnage de **Warhammer Fantasy Roleplay 4e édition** :
 
 - **Fiche** : caractéristiques, mouvement, compétences (de base, groupées, avancées), talents.
-- **Combat** : tout sur un écran. Barre fixe (Blessures, Avantage, Chance), attaques par arme avec valeur de test et dégâts calculés, Esquive / Parade / Initiative, talents de combat, points d'armure, états, blessures critiques, Destin et Résilience. **Lanceur de dés** : difficulté, Avantage (+10 par point) ajouté automatiquement, réussite/échec, DR, critique ou maladresse, localisation (dés inversés) et dégâts (arme + DR), relance avec un point de Chance.
+- **Combat** : tout sur un écran. Barre fixe (Blessures, Avantage, Chance), attaques par arme avec valeur de test et dégâts calculés, Esquive / Parade / Initiative, talents de combat, points d'armure, blessures critiques, Destin et Résilience. **Lanceur de dés** : difficulté, Avantage (+10 par point) ajouté automatiquement, réussite/échec, DR, critique ou maladresse, localisation (dés inversés) et dégâts (arme + DR), relance avec un point de Chance.
 - **Sac** : richesses (CO/PA/SC avec rendu de monnaie), encombrement, armes (dégâts BF+X calculés), armures (portée/non portée), possessions.
 - **Progrès** : XP actuelle/dépensée/totale, carrière et conditions pour terminer l'échelon, changement d'échelon (100 XP) ou de carrière (100/200 XP), **historique de l'XP** avec annulation.
 - **Mode progression** (bouton ★ XP en haut) : des boutons **+** apparaissent à côté des caractéristiques, compétences et talents **seulement si tu as assez d'XP**. Les boutons dorés suivent ta carrière (coût normal), les rosés sont hors carrière (coût ×2).
