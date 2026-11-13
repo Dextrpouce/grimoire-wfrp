@@ -117,7 +117,8 @@ export async function joinGroup(id) {
 }
 
 // fn(state) modifie l'état et renvoie le texte du journal (ou null pour annuler)
-export async function updateGroup(id, fn, author) {
+// date = moment réel de la modification (elle a pu attendre hors ligne avant d'être envoyée)
+export async function updateGroup(id, fn, author, date = Date.now()) {
   who();
   return fb.runTransaction(db, async (tx) => {
     const snap = await tx.get(groupDoc(id));
@@ -125,7 +126,7 @@ export async function updateGroup(id, fn, author) {
     const state = JSON.parse(snap.data().json || '{}');
     const text = fn(state);
     if (!text) return false;
-    state.log = [{ id: Math.random().toString(36).slice(2, 10), date: Date.now(), who: author, text }, ...(state.log || [])].slice(0, 400);
+    state.log = [{ id: Math.random().toString(36).slice(2, 10), date, who: author, text }, ...(state.log || [])].sort((a, b) => b.date - a.date).slice(0, 400);
     tx.update(groupDoc(id), { json: JSON.stringify(state), updatedAt: Date.now() });
     return true;
   });

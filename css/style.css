@@ -645,3 +645,6 @@ label.chip:has(input:checked) { background: var(--blood); color: #fbe9d3; border
 .fate-help[open] summary::before { content: '▾ '; }
 .fate-help p { margin: 8px 0 0; font-size: 15px; line-height: 1.45; }
 .g-names { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 12px; }
+
+.g-log.pending { opacity: .7; }
+.g-wait .btn { margin-left: 6px; }

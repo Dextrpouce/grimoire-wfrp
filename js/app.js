@@ -1,6 +1,6 @@
 import * as R from './rules.js';
 import { store } from './store.js';
-import { group, uid as gid } from './group.js';
+import { group, uid as gid, toSC, fmtMoney } from './group.js';
 
 // ================= Utilitaires =================
 const $app = document.getElementById('app');
@@ -953,22 +953,17 @@ function viewMagie(c) {
 }
 
 // ---------- Groupe (caisse, dettes, matériel… partagés et journalisés) ----------
-const toSC = (m) => num(m?.co) * 240 + num(m?.pa) * 12 + num(m?.sc);
-const fromSC = (t) => ({ co: Math.floor(t / 240), pa: Math.floor((t % 240) / 12), sc: t % 12 });
-const fmtMoney = (m) => {
-  const parts = [[num(m?.co), 'CO'], [num(m?.pa), 'PA'], [num(m?.sc), 'SC']].filter(([v]) => v).map(([v, k]) => `${v} ${k}`);
-  return parts.join(' ') || '0';
-};
 const moneyFields = (m = {}) => `<div class="fields four">${F.num('co', 'CO', m.co || '')}${F.num('pa', 'PA', m.pa || '')}${F.num('sc', 'SC', m.sc || '')}</div>`;
 const moneyOf = (f) => ({ co: num(f.co.value), pa: num(f.pa.value), sc: num(f.sc.value) });
 const groupAuthor = () => C()?.name || store.userEmail || 'Joueur';
-async function gDo(fn) {
-  try { await group.update(fn, groupAuthor()); } catch (e) {
-    toast(e.code === 'resource-exhausted' ? 'Limite gratuite de Firebase atteinte pour aujourd’hui : réessaie demain'
-      : e.code === 'permission-denied' ? 'Accès refusé : tu n’es plus membre de ce groupe ?' : (e.message || 'Modification impossible'));
-  }
+// Applique tout de suite sur l'appareil et met en file d'attente ; false si impossible (le dialogue reste ouvert)
+function gOp(op) {
+  try { group.apply(op, groupAuthor()); render(); } catch (e) { toast(e.message || 'Modification impossible'); return false; }
+  return undefined;
 }
 const gDate = (t) => new Date(t).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) + ' ' + new Date(t).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+const logRow = (l) => `<div class="g-log ${l.pending ? 'pending' : ''}"><span class="small muted">${gDate(l.date)} · ${esc(l.who)}${l.pending ? ' · ⏳ en attente' : ''}</span><span>${esc(l.text)}</span></div>`;
 
 function viewGroupe() {
   const g = group.current;
@@ -990,7 +985,11 @@ function viewGroupe() {
   const items = places.map((p) => `${places.length > 1 || p ? `<div class="g-place">${esc(p || 'Sans lieu')}</div>` : ''}${s.items.filter((it) => (it.place || '') === p).map((it) => `
       <div class="g-row"><span class="g-main" data-act="gItem" data-id="${it.id}" role="button"><b>${esc(it.name)}</b>${it.note ? `<span class="small muted">${esc(it.note)}</span>` : ''}</span>
         <span class="g-qty"><button class="qty-btn" data-act="gQty" data-id="${it.id}" data-d="-1" aria-label="Moins">−</button><b>${num(it.qty)}</b><button class="qty-btn" data-act="gQty" data-id="${it.id}" data-d="1" aria-label="Plus">+</button></span></div>`).join('')}`).join('');
-  return `${group.online ? '' : `<div class="lvl-banner">${icon('cloud')}<span>${group.error ? esc(group.error) : 'Hors ligne : tu vois la dernière version connue. Connecte-toi pour modifier.'}</span></div>`}
+  const waiting = group.pending;
+  const banner = waiting
+    ? `<div class="lvl-banner g-wait">${icon('cloud')}<span><b>${waiting} modification${waiting > 1 ? 's' : ''} en attente</b>${group.error ? ` — ${esc(group.error)}` : ' — envoi en cours'}. Elles sont enregistrées sur ton appareil et partiront toutes seules dès que possible. <button class="btn small ghost" data-act="gRetry">Réessayer</button></span></div>`
+    : group.error ? `<div class="lvl-banner">${icon('cloud')}<span>${esc(group.error)}</span></div>` : '';
+  return `${banner}
   <div class="grid two">
     <div class="stack">
       <section class="card">
@@ -1037,7 +1036,7 @@ function viewGroupe() {
       </section>
       <section class="card">
         <h2>Journal</h2>
-        ${s.log.slice(0, 12).map((l) => `<div class="g-log"><span class="small muted">${gDate(l.date)} · ${esc(l.who)}</span><span>${esc(l.text)}</span></div>`).join('') || '<div class="empty">Rien pour l\'instant.</div>'}
+        ${s.log.slice(0, 12).map(logRow).join('') || '<div class="empty">Rien pour l\'instant.</div>'}
         ${s.log.length > 12 ? `<div class="add-row"><button class="btn ghost small" data-act="gLog">Tout le journal (${s.log.length})</button></div>` : ''}
       </section>
       <section class="card">
@@ -1072,8 +1071,10 @@ const GROUP_ACTIONS = {
     });
   },
   gLeave() {
-    confirmDialog('Quitter le groupe ?', 'Tu ne verras plus la caisse ni le matériel du groupe sur cet appareil. Tu pourras revenir avec le code.', 'Quitter', () => { group.leave().then(render); });
+    const warn = group.pending ? ` <b>${group.pending} modification(s) pas encore envoyée(s) seront perdues.</b>` : '';
+    confirmDialog('Quitter le groupe ?', `Tu ne verras plus la caisse ni le matériel du groupe sur cet appareil. Tu pourras revenir avec le code.${warn}`, 'Quitter', () => { group.leave().then(render); });
   },
+  gRetry() { group.flush(); toast('Nouvel essai d’envoi…'); },
   async gCopy() {
     const code = group.current?.id || '';
     try { await navigator.clipboard.writeText(code); toast('Code copié'); } catch { toast(`Code : ${code}`); }
@@ -1084,24 +1085,20 @@ const GROUP_ACTIONS = {
       title: gain ? 'Recevoir dans la caisse' : 'Payer avec la caisse',
       body: `${moneyFields()}${F.text('note', 'Motif', '', 'full', `placeholder="${gain ? 'ex. Récompense du bourgmestre' : 'ex. Réparation du bateau'}"`)}`,
       actions: [cancel, { label: gain ? 'Recevoir' : 'Payer', cls: gain ? 'green' : '', primary: true, onClick: (f) => {
-        const m = moneyOf(f); const amt = toSC(m); const note = f.note.value.trim();
-        if (!amt) { toast('Indique un montant'); return false; }
+        const m = moneyOf(f); const note = f.note.value.trim();
+        if (!toSC(m)) { toast('Indique un montant'); return false; }
         if (!note) { toast('Indique le motif (pour le journal)'); return false; }
-        gDo((s) => {
-          if (gain) { s.money = { co: num(s.money.co) + m.co, pa: num(s.money.pa) + m.pa, sc: num(s.money.sc) + m.sc }; return `+${fmtMoney(m)} dans la caisse : ${note}`; }
-          if (amt > toSC(s.money)) { toast('Pas assez dans la caisse'); return null; }
-          s.money = fromSC(toSC(s.money) - amt); return `−${fmtMoney(m)} payés : ${note}`;
-        });
+        return gOp({ t: gain ? 'gain' : 'pay', m, note });
       } }],
     });
   },
   gDebt(el) {
     const s = group.state; const d = s.debts.find((x) => x.id === el.dataset.id);
-    const names = [...new Set([...Object.values(group.current?.members || {}), ...store.list().map((c) => c.name)])];
+    const names = [...new Set([...Object.values(group.current?.members || {}), ...store.list().map((c) => c.name)])].filter(Boolean);
     openDialog({
       title: d ? `Dette : ${d.who}` : 'Nouvelle dette',
       body: `${F.text('who', 'Qui doit', d?.who || '', 'full', 'autocomplete="off"')}
-        ${names.length ? `<div class="g-names">${names.map((n) => `<button type="button" class="chip" data-name="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : ''}
+        ${names.length ? `<div class="g-names">${names.map((nm) => `<button type="button" class="chip" data-name="${esc(nm)}">${esc(nm)}</button>`).join('')}</div>` : ''}
         ${moneyFields(d?.amount)}${F.text('note', 'Motif', d?.note || '', 'full', 'placeholder="ex. Avance pour une épée"')}
         ${d ? '' : '<label class="row small"><input type="checkbox" name="out" checked style="width:auto"> L\'argent sort de la caisse (avance)</label>'}`,
       // Toucher un nom remplit le champ ; toucher le champ sélectionne tout le texte
@@ -1110,22 +1107,13 @@ const GROUP_ACTIONS = {
         f.querySelectorAll('.g-names .chip').forEach((b) => b.addEventListener('click', () => { f.who.value = b.dataset.name; }));
       },
       actions: [
-        ...(d ? [{ label: icon('trash'), cls: 'ghost', onClick: () => { gDo((st) => { st.debts = st.debts.filter((x) => x.id !== d.id); return `Dette de ${d.who} (${fmtMoney(d.amount)}) supprimée`; }); } }, 'spacer'] : []),
+        ...(d ? [{ label: icon('trash'), cls: 'ghost', onClick: () => gOp({ t: 'del', list: 'debts', id: d.id, text: `Dette de ${d.who} (${fmtMoney(d.amount)}) supprimée` }) }, 'spacer'] : []),
         cancel,
         { label: 'Enregistrer', primary: true, onClick: (f) => {
           const who = f.who.value.trim(); const m = moneyOf(f); const note = f.note.value.trim();
           if (!who || !toSC(m)) { toast('Indique qui doit et combien'); return false; }
-          gDo((st) => {
-            if (d) {
-              const x = st.debts.find((y) => y.id === d.id); if (!x) return null;
-              Object.assign(x, { who, amount: m, note }); return `Dette de ${who} corrigée : ${fmtMoney(m)}`;
-            }
-            const out = f.out?.checked;
-            if (out && toSC(m) > toSC(st.money)) { toast('Pas assez dans la caisse pour cette avance'); return null; }
-            if (out) st.money = fromSC(toSC(st.money) - toSC(m));
-            st.debts.push({ id: gid(), who, amount: m, note });
-            return `${who} doit ${fmtMoney(m)} à la caisse${note ? ` : ${note}` : ''}${out ? ' (sorti de la caisse)' : ''}`;
-          });
+          if (d) return gOp({ t: 'edit', list: 'debts', id: d.id, v: { who, amount: m, note }, text: `Dette de ${d.who} corrigée : ${who}, ${fmtMoney(m)}` });
+          return gOp({ t: 'debtAdd', debt: { id: gid(), who, amount: m, note }, out: !!f.out?.checked });
         } },
       ],
     });
@@ -1136,16 +1124,9 @@ const GROUP_ACTIONS = {
       title: `Remboursement : ${d.who}`,
       body: `<p class="small muted" style="margin:0 0 8px">Reste dû : <b>${fmtMoney(d.amount)}</b>. Le montant remboursé entre dans la caisse.</p>${moneyFields(d.amount)}`,
       actions: [cancel, { label: 'Rembourser', cls: 'green', primary: true, onClick: (f) => {
-        const m = moneyOf(f); const amt = toSC(m);
-        if (!amt) return false;
-        gDo((st) => {
-          const x = st.debts.find((y) => y.id === d.id); if (!x) return null;
-          const pay = Math.min(amt, toSC(x.amount));
-          st.money = { co: num(st.money.co) + m.co, pa: num(st.money.pa) + m.pa, sc: num(st.money.sc) + m.sc };
-          const rest = toSC(x.amount) - pay;
-          if (rest <= 0) st.debts = st.debts.filter((y) => y.id !== d.id); else x.amount = fromSC(rest);
-          return `${d.who} rembourse ${fmtMoney(m)}${rest > 0 ? ` (reste ${fmtMoney(fromSC(rest))})` : ' : dette soldée'}`;
-        });
+        const m = moneyOf(f);
+        if (!toSC(m)) return false;
+        return gOp({ t: 'repay', id: d.id, m });
       } }],
     });
   },
@@ -1161,38 +1142,29 @@ const GROUP_ACTIONS = {
         ${it && c && num(it.qty) > 0 ? `<button type="button" class="btn block" id="gGive" style="margin-top:6px">Donner 1 à ${esc(c.name)} (Sac)</button>` : ''}`,
       onOpen: (f) => f.querySelector('#gGive')?.addEventListener('click', () => {
         dlg.close();
-        gDo((st) => {
-          const x = st.items.find((y) => y.id === it.id); if (!x || num(x.qty) < 1) return null;
-          x.qty = num(x.qty) - 1;
-          if (x.qty <= 0) st.items = st.items.filter((y) => y.id !== it.id);
-          const mine = c.items.find((y) => R.norm(y.name) === R.norm(it.name));
-          if (mine) mine.qty = num(mine.qty) + 1; else c.items.push({ name: it.name, qty: 1, enc: 0, notes: it.note || '' });
-          commit(false);
-          return `${it.name} donné à ${c.name}`;
-        });
+        if (gOp({ t: 'qty', id: it.id, d: -1, removeAtZero: true, text: `${it.name} donné à ${c.name}` }) === false) return;
+        const mine = c.items.find((y) => R.norm(y.name) === R.norm(it.name));
+        if (mine) mine.qty = num(mine.qty) + 1; else c.items.push({ name: it.name, qty: 1, enc: 0, notes: it.note || '' });
+        commit(false);
+        toast(`${it.name} ajouté à ton Sac`);
       }),
       actions: [
-        ...(it ? [{ label: icon('trash'), cls: 'ghost', onClick: () => { gDo((st) => { st.items = st.items.filter((x) => x.id !== it.id); return `${it.name} retiré du matériel`; }); } }, 'spacer'] : []),
+        ...(it ? [{ label: icon('trash'), cls: 'ghost', onClick: () => gOp({ t: 'del', list: 'items', id: it.id, text: `${it.name} retiré du matériel` }) }, 'spacer'] : []),
         cancel,
         { label: 'Enregistrer', primary: true, onClick: (f) => {
           const v = { name: f.name.value.trim(), qty: Math.max(0, num(f.qty.value)), place: f.place.value.trim(), note: f.note.value.trim() };
           if (!v.name) { toast('Donne un nom à l\'objet'); return false; }
-          gDo((st) => {
-            if (it) { const x = st.items.find((y) => y.id === it.id); if (!x) return null; const before = num(x.qty); Object.assign(x, v); return `${v.name} modifié${before !== v.qty ? ` (${before} → ${v.qty})` : ''}`; }
-            st.items.push({ id: gid(), ...v }); return `${v.qty} × ${v.name} ajouté au matériel${v.place ? ` (${v.place})` : ''}`;
-          });
+          if (it) return gOp({ t: 'edit', list: 'items', id: it.id, v, text: `${v.name} modifié${num(it.qty) !== v.qty ? ` (${num(it.qty)} → ${v.qty})` : ''}` });
+          return gOp({ t: 'add', list: 'items', item: { id: gid(), ...v }, text: `${v.qty} × ${v.name} ajouté au matériel${v.place ? ` (${v.place})` : ''}` });
         } },
       ],
     });
   },
   gQty(el) {
+    const it = group.state.items.find((x) => x.id === el.dataset.id); if (!it) return;
     const d = +el.dataset.d;
-    gDo((st) => {
-      const x = st.items.find((y) => y.id === el.dataset.id); if (!x) return null;
-      const before = num(x.qty); const after = Math.max(0, before + d);
-      if (after === before) return null;
-      x.qty = after; return `${x.name} : ${before} → ${after}`;
-    });
+    if (num(it.qty) + d < 0) return;
+    gOp({ t: 'qty', id: it.id, d });
   },
   gSale(el) {
     const it = group.state.sale.find((x) => x.id === el.dataset.id);
@@ -1200,15 +1172,13 @@ const GROUP_ACTIONS = {
       title: it ? it.name : 'Objet à vendre',
       body: `${F.text('name', 'Nom', it?.name || '', 'full', 'autofocus')}<div class="flabel">Prix estimé</div>${moneyFields(it?.price)}${F.text('note', 'Note', it?.note || '', 'full')}`,
       actions: [
-        ...(it ? [{ label: icon('trash'), cls: 'ghost', onClick: () => { gDo((st) => { st.sale = st.sale.filter((x) => x.id !== it.id); return `${it.name} retiré des ventes`; }); } }, 'spacer'] : []),
+        ...(it ? [{ label: icon('trash'), cls: 'ghost', onClick: () => gOp({ t: 'del', list: 'sale', id: it.id, text: `${it.name} retiré des ventes` }) }, 'spacer'] : []),
         cancel,
         { label: 'Enregistrer', primary: true, onClick: (f) => {
           const v = { name: f.name.value.trim(), price: moneyOf(f), note: f.note.value.trim() };
           if (!v.name) { toast('Donne un nom à l\'objet'); return false; }
-          gDo((st) => {
-            if (it) { const x = st.sale.find((y) => y.id === it.id); if (!x) return null; Object.assign(x, v); return `${v.name} (à vendre) modifié`; }
-            st.sale.push({ id: gid(), ...v }); return `${v.name} mis en vente${toSC(v.price) ? ` (≈ ${fmtMoney(v.price)})` : ''}`;
-          });
+          if (it) return gOp({ t: 'edit', list: 'sale', id: it.id, v, text: `${v.name} (à vendre) modifié` });
+          return gOp({ t: 'add', list: 'sale', item: { id: gid(), ...v }, text: `${v.name} mis en vente${toSC(v.price) ? ` (≈ ${fmtMoney(v.price)})` : ''}` });
         } },
       ],
     });
@@ -1218,15 +1188,7 @@ const GROUP_ACTIONS = {
     openDialog({
       title: `Vendu : ${it.name}`,
       body: `<p class="small muted" style="margin:0 0 8px">Prix réel de la vente : il entre dans la caisse.</p>${moneyFields(it.price)}`,
-      actions: [cancel, { label: 'Vendu', cls: 'green', primary: true, onClick: (f) => {
-        const m = moneyOf(f);
-        gDo((st) => {
-          if (!st.sale.some((y) => y.id === it.id)) return null;
-          st.sale = st.sale.filter((y) => y.id !== it.id);
-          st.money = { co: num(st.money.co) + m.co, pa: num(st.money.pa) + m.pa, sc: num(st.money.sc) + m.sc };
-          return `${it.name} vendu ${fmtMoney(m)}`;
-        });
-      } }],
+      actions: [cancel, { label: 'Vendu', cls: 'green', primary: true, onClick: (f) => gOp({ t: 'sold', id: it.id, m: moneyOf(f) }) }],
     });
   },
   gQuest(el) {
@@ -1235,15 +1197,13 @@ const GROUP_ACTIONS = {
       title: it ? it.name : 'Objet de quête',
       body: `${F.text('name', 'Nom', it?.name || '', 'full', 'autofocus placeholder="ex. Médaillon Septenarius"')}${F.area('note', 'Note', it?.note || '', 'full')}`,
       actions: [
-        ...(it ? [{ label: icon('trash'), cls: 'ghost', onClick: () => { gDo((st) => { st.quest = st.quest.filter((x) => x.id !== it.id); return `${it.name} retiré des objets de quête`; }); } }, 'spacer'] : []),
+        ...(it ? [{ label: icon('trash'), cls: 'ghost', onClick: () => gOp({ t: 'del', list: 'quest', id: it.id, text: `${it.name} retiré des objets de quête` }) }, 'spacer'] : []),
         cancel,
         { label: 'Enregistrer', primary: true, onClick: (f) => {
           const v = { name: f.name.value.trim(), note: f.note.value.trim() };
           if (!v.name) { toast('Donne un nom à l\'objet'); return false; }
-          gDo((st) => {
-            if (it) { const x = st.quest.find((y) => y.id === it.id); if (!x) return null; Object.assign(x, v); return `Objet de quête modifié : ${v.name}`; }
-            st.quest.push({ id: gid(), ...v }); return `Objet de quête ajouté : ${v.name}`;
-          });
+          if (it) return gOp({ t: 'edit', list: 'quest', id: it.id, v, text: `Objet de quête modifié : ${v.name}` });
+          return gOp({ t: 'add', list: 'quest', item: { id: gid(), ...v }, text: `Objet de quête ajouté : ${v.name}` });
         } },
       ],
     });
@@ -1254,35 +1214,26 @@ const GROUP_ACTIONS = {
       title: p ? p.name : 'Personnel ou frais',
       body: `${F.text('name', 'Nom', p?.name || '', 'full', 'autofocus placeholder="ex. 1 marin"')}<div class="flabel">Coût</div>${moneyFields(p?.cost)}${F.text('period', 'Par', p?.period || 'mois', 'full', 'placeholder="mois, semaine…"')}`,
       actions: [
-        ...(p ? [{ label: icon('trash'), cls: 'ghost', onClick: () => { gDo((st) => { st.staff = st.staff.filter((x) => x.id !== p.id); return `${p.name} retiré du personnel`; }); } }, 'spacer'] : []),
+        ...(p ? [{ label: icon('trash'), cls: 'ghost', onClick: () => gOp({ t: 'del', list: 'staff', id: p.id, text: `${p.name} retiré du personnel` }) }, 'spacer'] : []),
         cancel,
         { label: 'Enregistrer', primary: true, onClick: (f) => {
           const v = { name: f.name.value.trim(), cost: moneyOf(f), period: f.period.value.trim() || 'mois' };
           if (!v.name) { toast('Donne un nom'); return false; }
-          gDo((st) => {
-            if (p) { const x = st.staff.find((y) => y.id === p.id); if (!x) return null; Object.assign(x, v); return `${v.name} modifié : ${fmtMoney(v.cost)} / ${v.period}`; }
-            st.staff.push({ id: gid(), ...v }); return `${v.name} ajouté : ${fmtMoney(v.cost)} / ${v.period}`;
-          });
+          if (p) return gOp({ t: 'edit', list: 'staff', id: p.id, v, text: `${v.name} modifié : ${fmtMoney(v.cost)} / ${v.period}` });
+          return gOp({ t: 'add', list: 'staff', item: { id: gid(), ...v }, text: `${v.name} ajouté : ${fmtMoney(v.cost)} / ${v.period}` });
         } },
       ],
     });
   },
   gStaffPay(el) {
     const p = group.state.staff.find((x) => x.id === el.dataset.id); if (!p) return;
-    confirmDialog(`Payer ${esc(p.name)} ?`, `<b>${fmtMoney(p.cost)}</b> sortiront de la caisse (${esc(p.period || 'mois')}).`, 'Payer', () => {
-      gDo((st) => {
-        const x = st.staff.find((y) => y.id === p.id); if (!x) return null;
-        if (toSC(x.cost) > toSC(st.money)) { toast('Pas assez dans la caisse'); return null; }
-        st.money = fromSC(toSC(st.money) - toSC(x.cost)); x.lastPaid = Date.now();
-        return `${x.name} payé : ${fmtMoney(x.cost)} (${x.period || 'mois'})`;
-      });
-    });
+    confirmDialog(`Payer ${esc(p.name)} ?`, `<b>${fmtMoney(p.cost)}</b> sortiront de la caisse (${esc(p.period || 'mois')}).`, 'Payer', () => gOp({ t: 'staffPay', id: p.id, date: Date.now() }));
   },
   gLog() {
     const log = group.state.log;
     openDialog({
       title: 'Journal du groupe',
-      body: `<div class="g-logall">${log.map((l) => `<div class="g-log"><span class="small muted">${gDate(l.date)} · ${esc(l.who)}</span><span>${esc(l.text)}</span></div>`).join('')}</div>`,
+      body: `<div class="g-logall">${log.map(logRow).join('')}</div>`,
       actions: [{ label: 'Fermer', cls: 'ghost', primary: true }],
     });
   },
