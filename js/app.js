@@ -106,6 +106,47 @@ function confirmDialog(title, text, okLabel, onOk) {
   openDialog({ title, body: `<p>${text}</p>`, actions: [cancel, { label: okLabel, primary: true, onClick: onOk }] });
 }
 
+// ================= Talents de carrière =================
+// État d'un talent de la carrière pour ce personnage (pris, maximum, coût, échelon futur)
+function careerTalentState(c, entry, levelIdx) {
+  const owned = R.ownedForEntry(c, entry);
+  const choice = R.talentNeedsChoice(entry);
+  const max = R.talentMax(c, store.findTalent(entry)?.max);
+  // Talent « au choix » : chaque nouvelle précision repart de zéro
+  const times = choice ? 0 : owned.reduce((n, t) => n + (+t.times || 0), 0);
+  const atMax = !choice && max != null && times >= max;
+  return { owned, choice, max, times, atMax, future: levelIdx + 1 > R.careerLevel(c), cost: R.talentCost(times, true) };
+}
+// Ordre d'affichage : échelon actuel, puis les précédents, puis les suivants
+function careerLevelOrder(c) {
+  const lvl = R.careerLevel(c);
+  return [lvl - 1, ...[...Array(lvl - 1).keys()].reverse(), ...[0, 1, 2, 3].filter((i) => i >= lvl)];
+}
+function ownedLabel(st) {
+  return st.owned.length ? `✓ ${st.owned.map((t) => `${esc(t.name)}${+t.times > 1 ? ` ×${t.times}` : ''}`).join(', ')}` : '';
+}
+function careerTalentPicker(c, buying) {
+  if (!c.career?.name) return '';
+  const lvl = R.careerLevel(c);
+  const levels = careerLevelOrder(c).map((i) => {
+    const L = c.career.levels[i];
+    if (!L?.talents?.length) return '';
+    const rows = L.talents.map((e) => {
+      const st = careerTalentState(c, e, i);
+      const off = st.future || st.atMax;
+      const status = st.future ? 'plus tard'
+        : st.atMax ? `✓ max ${st.times}/${st.max}`
+        : [ownedLabel(st), buying ? `<b class="${st.cost > avail(c) ? 'bad' : ''}">${st.cost} XP</b>` : ''].filter(Boolean).join(' · ');
+      return `<button type="button" class="ct-row ${off ? 'off' : ''}" data-entry="${esc(e)}" ${off ? 'disabled' : ''}>
+        <span class="ct-n">${esc(e)}${i + 1 === lvl ? ' <span class="career-mark" title="Un talent de l’échelon actuel est nécessaire pour le terminer">◆</span>' : ''}</span>
+        <span class="ct-s">${status}</span></button>`;
+    }).join('');
+    return `<div class="ct-level ${i + 1 > lvl ? 'future' : ''}"><div class="ct-h">Échelon ${i + 1} · ${esc(L.title || '')}${i + 1 === lvl ? ' <span class="tag">actuel</span>' : ''}</div>${rows}</div>`;
+  }).join('');
+  return `<div class="ct-pick">${levels}</div>
+    <div class="field full" id="ctChoice" hidden><label id="ctChoiceLbl">Précision</label><input name="ctSpec" placeholder="ex. Forêts, Vue, Nobles…"></div>`;
+}
+
 // ================= XP =================
 function spend(c, cost, label, undo) {
   if (cost > avail(c)) { toast(`Il te manque ${cost - avail(c)} XP`); return false; }
@@ -549,11 +590,12 @@ function viewProg(c) {
     <div class="stack">
       <section class="card">
         <h2>Expérience</h2>
-        <div class="xp-boxes">
+        <div class="xp-boxes" data-act="editXp" role="button" title="Corriger l'expérience">
           <div class="stat avail"><div class="sk">Actuelle</div><div class="sv">${avail(c)}</div></div>
           <div class="stat"><div class="sk">Dépensée</div><div class="sv">${c.xp.spent}</div></div>
           <div class="stat"><div class="sk">Totale</div><div class="sv">${c.xp.total}</div></div>
         </div>
+        ${!+c.xp.spent && !c.xpLog.length ? '<p class="small muted" style="margin:8px 0 0">Personnage déjà avancé ? Touche les chiffres pour saisir l’XP déjà dépensée.</p>' : ''}
         <div class="row" style="margin-top:12px">
           <button class="btn green" style="flex:1" data-act="gainXp">${icon('plus')} Gagner de l'XP</button>
           <button class="btn ${ui.levelUp ? 'ghost' : 'gold'}" style="flex:1" data-act="toggleLevelUp">${icon('star')} ${ui.levelUp ? 'Quitter la progression' : 'Mode progression'}</button>
@@ -572,6 +614,12 @@ function viewProg(c) {
           ${check(p.chars.length && p.charsOk.length === p.chars.length, `Caractéristiques de carrière : ${p.charsOk.length} / ${p.chars.length}${p.chars.length ? ` <span class="muted small">(${p.chars.join(', ')})</span>` : ''}`)}
           ${check(p.skillsOk.length >= p.skillsNeeded && p.skillsNeeded > 0, `Compétences de carrière : ${p.skillsOk.length} / ${p.skillsNeeded}`)}
           ${check(p.talentsOk.length >= p.talentsNeeded, `Talent de l'échelon : ${p.talentsOk.length ? esc(p.talentsOk.join(', ')) : `0 / ${p.talentsNeeded}`}`)}
+          ${(L.talents || []).length ? `<h3>Talents de l'échelon ${lvl}</h3><div class="ct-list">${L.talents.map((e) => {
+            const st = careerTalentState(c, e, lvl - 1);
+            const can = !st.atMax && st.cost <= avail(c);
+            return `<div class="ct-line"><div class="ct-n">${esc(e)}${st.owned.length ? `<div class="small muted">${ownedLabel(st)}${st.atMax ? ' · maximum atteint' : ''}</div>` : ''}</div>
+              ${st.atMax ? '<span class="ct-max">max</span>' : `<button class="btn small ${can ? 'gold' : 'ghost'}" data-act="buyCareerTalent" data-entry="${esc(e)}" ${can ? '' : 'disabled'}>${icon('plus')} ${st.cost} XP</button>`}</div>`;
+          }).join('')}</div>` : ''}
           <div class="row" style="margin-top:12px">
             ${lvl < 4 ? `<button class="btn gold" style="flex:1" data-act="nextLevel" ${p.complete && avail(c) >= R.LEVEL_UP_COST ? '' : 'disabled'}>Échelon ${lvl + 1} (${R.LEVEL_UP_COST} XP)</button>` : ''}
             <button class="btn ghost" style="flex:1" data-act="changeCareer" ${avail(c) >= changeCost ? '' : 'disabled'}>Changer de carrière (${changeCost} XP)</button>
@@ -872,6 +920,25 @@ const A = {
     }
   },
   undo() { undoLast(C()); },
+  // Personnage déjà avancé : saisie directe de l'XP actuelle et dépensée (sans passer par l'historique)
+  editXp() {
+    const c = C();
+    openDialog({
+      title: 'Corriger l’expérience',
+      body: `<p class="small muted" style="margin:0 0 10px">Pour un personnage créé en cours de campagne : recopie l’XP de ta feuille. La totale se calcule toute seule. Pour l’XP gagnée en jeu, utilise plutôt « Gagner de l’XP ».</p>
+        <div class="fields">${F.num('cur', 'XP actuelle (à dépenser)', avail(c))}${F.num('spent', 'XP dépensée', c.xp.spent || 0)}</div>
+        <div class="cost-line" id="xpTot"></div>`,
+      onOpen: (f) => {
+        const upd = () => { f.querySelector('#xpTot').innerHTML = `XP totale : <b>${Math.max(0, num(f.cur.value)) + Math.max(0, num(f.spent.value))}</b>`; };
+        f.cur.oninput = upd; f.spent.oninput = upd; upd();
+      },
+      actions: [cancel, { label: 'Enregistrer', primary: true, onClick: (f) => {
+        const cur = Math.max(0, num(f.cur.value)); const spent = Math.max(0, num(f.spent.value));
+        c.xp.spent = spent; c.xp.total = cur + spent;
+        commit(); toast('Expérience mise à jour');
+      } }],
+    });
+  },
   gainXp() {
     openDialog({
       title: 'Gagner de l\'expérience',
@@ -951,13 +1018,14 @@ const A = {
 
   // --- Talents ---
   addTalent() { A.editTalent({ dataset: { i: '-1' } }); },
+  buyCareerTalent(el) { A.editTalent({ dataset: { i: '-1', entry: el.dataset.entry, buy: '1' } }); },
   editTalent(el) {
     const c = C(); const i = +el.dataset.i; const t = c.talents[i];
-    const buying = !t && ui.levelUp;
-    const costFor = (name) => R.talentCost(0, R.talentInCareer(c, name));
+    const buying = !t && (ui.levelUp || el.dataset.buy === '1');
+    const picker = t ? '' : careerTalentPicker(c, buying);
     openDialog({
       title: t ? t.name : (buying ? 'Acheter un talent' : 'Nouveau talent'),
-      body: `${F.text('name', 'Nom', t?.name || '', '', 'autofocus list="talentNames" autocomplete="off"')}
+      body: `${picker}${F.text('name', picker ? 'Talent (choisis-le ci-dessus, ou tape un autre nom : hors carrière, coût doublé)' : 'Nom', t?.name || '', '', `${picker ? '' : 'autofocus '}list="talentNames" autocomplete="off" placeholder="Nom du talent"`)}
         <datalist id="talentNames">${[...new Set([
           ...c.career.levels.slice(0, R.careerLevel(c)).flatMap((l) => l.talents),
           ...store.talents().map((x) => x.name),
@@ -978,6 +1046,7 @@ const A = {
           // Remplit la description depuis la bibliothèque si l'utilisateur ne l'a pas écrite lui-même
           if (info?.desc && (!f.desc.value.trim() || f.desc.value === autoDesc)) { f.desc.value = info.desc; autoDesc = info.desc; }
           if (!buying) return;
+          if (!name) { const box = f.querySelector('#cost'); box.className = 'cost-line'; box.innerHTML = `Choisis un talent — disponible : ${avail(c)} XP`; return; }
           const inC = R.talentInCareer(c, name);
           const cost = R.talentCost(have ? +have.times : 0, inC);
           const atMax = max != null && have && +have.times >= max;
@@ -985,14 +1054,36 @@ const A = {
           box.className = `cost-line ${cost <= avail(c) && !atMax ? '' : 'bad'}`;
           box.innerHTML = atMax ? `Maximum atteint (${max})` : `Coût : <b>${cost} XP</b> ${inC ? '◆ talent de carrière' : '(hors carrière : coût doublé)'} — disponible : ${avail(c)} XP`;
         };
-        f.name.oninput = upd; upd();
+        f.name.oninput = () => { f.querySelectorAll('.ct-row.sel').forEach((r) => r.classList.remove('sel')); f.querySelector('#ctChoice')?.setAttribute('hidden', ''); upd(); };
+        // Liste de la carrière : un toucher remplit le nom ; un talent « au choix » demande sa précision
+        const choiceBox = f.querySelector('#ctChoice');
+        let picked = null;
+        const setFromChoice = () => {
+          const spec = f.ctSpec.value.trim();
+          f.name.value = spec ? `${R.talentBase(picked)} (${spec})` : picked;
+          upd();
+        };
+        f.querySelectorAll('.ct-row:not([disabled])').forEach((row) => row.addEventListener('click', () => {
+          f.querySelectorAll('.ct-row.sel').forEach((r) => r.classList.remove('sel'));
+          row.classList.add('sel');
+          picked = row.dataset.entry;
+          if (R.talentNeedsChoice(picked)) {
+            choiceBox.hidden = false;
+            f.querySelector('#ctChoiceLbl').textContent = `Précision pour ${R.talentBase(picked)}`;
+            f.ctSpec.value = ''; setFromChoice(); f.ctSpec.focus();
+          } else { choiceBox.hidden = true; f.name.value = picked; upd(); }
+        }));
+        if (choiceBox) f.ctSpec.oninput = setFromChoice;
+        upd();
+        if (el.dataset.entry) f.querySelector(`.ct-row[data-entry="${CSS.escape(el.dataset.entry)}"]`)?.click();
       },
       actions: [
         ...(t ? [{ label: icon('trash'), cls: 'ghost', onClick: () => { c.talents.splice(i, 1); commit(); } }, 'spacer'] : []),
         cancel,
         { label: buying ? 'Acheter' : 'Enregistrer', cls: buying ? 'gold' : '', primary: true, onClick: (f) => {
           let name = f.name.value.trim();
-          if (!name) { toast('Donne un nom au talent'); return false; }
+          if (!name) { toast('Choisis ou nomme un talent'); return false; }
+          if (R.talentNeedsChoice(name)) { toast('Indique la précision du talent (ex. Forêts)'); f.ctSpec?.focus(); return false; }
           // Reprend l'orthographe exacte de la bibliothèque (« tir précis » → « Tir Précis »)
           const libT = store.findTalent(name);
           if (libT && R.norm(name) === R.norm(libT.name)) name = libT.name;

@@ -416,13 +416,23 @@ export function skillInCareer(c, s) {
 // « Sans peur (Animaux) » compte aussi pour « Sans peur » ou le nom générique « Sans peur (Ennemi) »
 const GENERIC_SPEC = /choix|^(ennemi|terrain|sens|groupe|domaine|divinite|metier|menace|savoir)$/;
 const splitTalent = (s) => { const m = norm(s).match(/^(.*?)\s*\((.*)\)$/); return m ? [m[1].trim(), m[2].trim()] : [norm(s), '']; };
-export function talentInCareer(c, name) {
+// Un talent possédé (name) correspond-il à une entrée de carrière (entry) ?
+export function talentMatches(entry, name) {
   const [base, spec] = splitTalent(name);
-  return levelsUpTo(c).some((l) => (l.talents || []).some((x) => {
-    const [xb, xs] = splitTalent(x);
-    if (xb.replace(/\s*\/\s*/g, '/') !== base.replace(/\s*\/\s*/g, '/')) return false;
-    return xs === spec || !xs || !spec || GENERIC_SPEC.test(xs) || GENERIC_SPEC.test(spec);
-  }));
+  const [xb, xs] = splitTalent(entry);
+  if (xb.replace(/\s*\/\s*/g, '/') !== base.replace(/\s*\/\s*/g, '/')) return false;
+  return xs === spec || !xs || !spec || GENERIC_SPEC.test(xs) || GENERIC_SPEC.test(spec);
+}
+// L'entrée de carrière demande-t-elle une précision (« Bon marcheur (au choix) ») ?
+export function talentNeedsChoice(entry) {
+  const [, xs] = splitTalent(entry);
+  return !!xs && GENERIC_SPEC.test(xs);
+}
+export const talentBase = (entry) => String(entry || '').replace(/\s*\(.*\)\s*$/, '').trim();
+// Talents possédés qui correspondent à une entrée de carrière
+export const ownedForEntry = (c, entry) => (c.talents || []).filter((t) => +t.times > 0 && talentMatches(entry, t.name));
+export function talentInCareer(c, name) {
+  return levelsUpTo(c).some((l) => (l.talents || []).some((x) => talentMatches(x, name)));
 }
 
 // Conditions pour terminer l'échelon actuel
@@ -434,7 +444,7 @@ export function careerProgress(c) {
   const careerSkills = c.skills.filter((s) => skillInCareer(c, s));
   const skillsOk = careerSkills.filter((s) => (+s.advances || 0) >= need);
   const cur = c.career.levels[lvl - 1] || {};
-  const curTalents = (cur.talents || []).filter((t) => talentTimes(c, t) > 0);
+  const curTalents = (cur.talents || []).filter((t) => ownedForEntry(c, t).length > 0);
   const skillsNeeded = Math.min(8, careerSkills.length);
   return {
     need, chars, charsOk, skillsOk, skillsNeeded,

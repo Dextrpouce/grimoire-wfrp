@@ -560,3 +560,24 @@ label.chip:has(input:checked) { background: var(--blood); color: #fbe9d3; border
 .spell-out.ok { color: var(--green); }
 .spell-out.ko { color: var(--blood); }
 .stat .sv .step { font-size: 16px; }
+
+/* Talents de carrière : liste à toucher dans la fenêtre de talent, et carte Carrière */
+.ct-pick { display: flex; flex-direction: column; gap: 10px; max-height: 46vh; overflow-y: auto; margin: 0 0 12px; padding-right: 2px; }
+.ct-level { display: flex; flex-direction: column; gap: 4px; }
+.ct-h { font-family: var(--font-title); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); padding: 2px 2px 0; }
+.ct-h .tag { font-family: var(--font-body); text-transform: none; letter-spacing: 0; color: var(--blood); }
+.ct-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 44px; padding: 8px 10px; text-align: left;
+  border: 1px solid var(--line); border-radius: 10px; background: rgba(255, 255, 255, .35); color: var(--ink); font: inherit; cursor: pointer; }
+.ct-row .ct-n { font-weight: 600; min-width: 0; }
+.ct-row .ct-s { font-size: 13px; color: var(--ink-soft); text-align: right; flex-shrink: 0; max-width: 55%; }
+.ct-row .ct-s .bad { color: var(--blood); }
+.ct-row.sel { border-color: var(--gold); background: rgba(201, 154, 62, .18); box-shadow: inset 0 0 0 1px var(--gold); }
+.ct-row.off { opacity: .5; cursor: default; }
+.ct-level.future .ct-row { background: transparent; border-style: dashed; }
+.ct-list { display: flex; flex-direction: column; gap: 6px; }
+.ct-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.ct-line .ct-n { font-weight: 600; min-width: 0; }
+.ct-line .btn { flex-shrink: 0; }
+.ct-max { font-size: 13px; color: var(--green); font-weight: 700; padding: 0 8px; }
+.ct-pick:focus, .ct-pick:focus-visible { outline: none; }
+.xp-boxes[data-act] { cursor: pointer; }
