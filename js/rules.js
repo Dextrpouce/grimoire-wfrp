@@ -121,9 +121,9 @@ export const norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀
 // Talents qui donnent +5 permanent à une caractéristique (hors augmentations achetées)
 export const CHAR_TALENTS = {
   CC: ['Guerrier-Né', 'Warrior Born'], CT: ['Tireur précis', 'Tireur de précision', 'Bon Tireur', 'Marksman'], F: ['Très Fort', 'Very Strong'],
-  E: ['Très Résistant', 'Very Resilient'], I: ["Vif d'Esprit", 'Sharp'], Ag: ['Réflexes Éclairs', 'Lightning Reflexes'],
+  E: ['Forte constitution', 'Très Résistant', 'Very Resilient'], I: ["Vif d'Esprit", 'Sharp'], Ag: ['Réflexes Éclairs', 'Lightning Reflexes'],
   Dex: ['Doigt Agile', 'Doigts Agiles', 'Nimble Fingered'], Int: ['Perspicace', 'Intelligent', 'Savvy'],
-  FM: ["Calme d'Esprit", 'Coolheaded'], Soc: ['Charmant', 'Suave'],
+  FM: ['Sang-froid', "Calme d'Esprit", 'Coolheaded'], Soc: ['Charismatique', 'Charmant', 'Suave'],
 };
 
 // Bonus de talent d'une caractéristique : { value, names } (ex. { value: 5, names: ['Très Fort'] })
@@ -152,7 +152,8 @@ export function talentTimes(c, name) {
   return t ? +t.times || 0 : 0;
 }
 
-const HARDY_NAMES = ['Dur à cuire', 'Hardy', 'Inflexible', 'Robuste'];
+// Version Khaos : Robuste = +BE Blessures ; Dur à cuire = ancien Mâchoire d'acier (pas de Blessures)
+const HARDY_NAMES = ['Robuste', 'Hardy'];
 
 // Maximum d'un talent : « 2 », « Bonus de I », « Bonus de Force Mentale », « Bonus Sociabilite »…
 // (null = pas de limite connue). L'ordre compte : « force mentale » avant « force ».
@@ -211,7 +212,7 @@ export function movement(c) {
 
 // Chance : maximum de points de Chance = Destin + niveau du talent ; Fort d'Esprit : idem pour la Détermination
 export const luckBonus = (c) => timesAny(c, ['Chance', 'Chanceux', 'Luck']);
-export const strongMindBonus = (c) => timesAny(c, ["Fort d'Esprit", 'Strong-minded']);
+export const strongMindBonus = (c) => timesAny(c, ['Volonté de fer', "Fort d'Esprit", 'Strong-minded']);
 export const maxFortune = (c) => (+c.fate.fate || 0) + luckBonus(c);
 export const maxResolve = (c) => (+c.fate.resilience || 0) + strongMindBonus(c);
 

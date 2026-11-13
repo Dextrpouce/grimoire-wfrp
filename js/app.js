@@ -366,7 +366,7 @@ function viewSante(c) {
           <div class="stat"><div class="sk">BF</div><div class="sv">${wb.sb}</div></div>
           <div class="stat"><div class="sk">BE×2</div><div class="sv">${wb.tb2}</div></div>
           <div class="stat"><div class="sk">BFM</div><div class="sv">${wb.wpb}</div></div>
-          <div class="stat"><div class="sk">Dur à cuire</div><div class="sv">${wb.hardy}</div></div>
+          <div class="stat"><div class="sk">Robuste</div><div class="sv">${wb.hardy}</div></div>
           <div class="stat" data-act="woundsExtra" role="button"><div class="sk">Autre +</div><div class="sv">${wb.extra}</div></div>
         </div>
       </section>
@@ -1144,7 +1144,7 @@ const A = {
     const c = C();
     openDialog({
       title: 'Blessures supplémentaires',
-      body: `${F.num('v', 'Bonus / malus aux Blessures max', c.health.woundsExtra || 0)}<p class="small muted">Pour les effets non calculés automatiquement. « Dur à cuire » est déjà compté s'il figure dans tes talents.</p>`,
+      body: `${F.num('v', 'Bonus / malus aux Blessures max', c.health.woundsExtra || 0)}<p class="small muted">Pour les effets non calculés automatiquement. « Robuste » est déjà compté s'il figure dans tes talents.</p>`,
       actions: [cancel, { label: 'Enregistrer', primary: true, onClick: (f) => { c.health.woundsExtra = num(f.v.value); commit(); } }],
     });
   },
