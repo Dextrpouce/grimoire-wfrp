@@ -269,6 +269,16 @@ function viewFiche(c) {
     </div>`;
   }).join('') || '<div class="empty">Aucune compétence ici.</div>';
 
+  // Niveau d'un talent : chiffre + points du maximum (ou « / max » au-delà de 6)
+  const talentLevel = (t, max, inC) => {
+    const n = +t.times || 0;
+    const over = max != null && n > max;
+    const marks = max == null ? '' : max <= 6
+      ? `<span class="tlv-pips">${Array.from({ length: max }, (_, k) => `<i class="${k < n ? 'on' : ''}"></i>`).join('')}</span>`
+      : `<span class="tlv-of">/ ${max}</span>`;
+    const tip = max != null ? `Niveau ${n} sur ${max} maximum${over ? ' : au-dessus du maximum !' : ''}` : `Niveau ${n}`;
+    return `<span class="tlv ${inC ? 'gold' : ''} ${over ? 'over' : ''}" title="${tip}"><span class="tlv-k">Niv.</span><b>${n}</b>${marks}</span>`;
+  };
   const talents = c.talents.map((t, i) => {
     const inC = R.talentInCareer(c, t.name);
     const info = store.findTalent(t.name);
@@ -276,7 +286,7 @@ function viewFiche(c) {
     const atMax = max != null && (+t.times || 0) >= max;
     const desc = t.desc || info?.desc || '';
     return `<div class="list-item" data-act="editTalent" data-i="${i}" role="button">
-      <span class="badge ${inC ? 'gold' : 'soft'}" title="${max != null ? `Pris ${t.times} fois sur ${max} maximum` : ''}">${t.times}${max != null ? `<small style="opacity:.7">/${max}</small>` : ''}</span>
+      ${talentLevel(t, max, inC)}
       <span class="li-main"><div class="li-title">${esc(t.name)}${inC ? ' <span class="career-mark" style="color:var(--gold);font-size:10px">◆</span>' : ''}</div>${desc ? `<div class="li-sub">${esc(desc)}</div>` : ''}${info?.tests && info.tests !== 'Aucun' ? `<div class="small muted">Tests : ${esc(info.tests)}</div>` : ''}</span>
       ${ui.levelUp ? (atMax ? '<span class="cost-na">max</span>' : plusBtn(c, R.talentCost(+t.times || 0, inC), 'buyTalent', `data-i="${i}"`, inC)) : ''}
     </div>`;
@@ -1117,10 +1127,12 @@ const A = {
             if (!spend(c, cost, `Talent ${name}${inC ? '' : ' hors carrière'}`, { type: 'talent', name })) return false;
             if (existing) existing.times++;
             else c.talents.push({ name, times: 1, desc: f.desc.value.trim() });
-          } else if (t) {
-            Object.assign(t, { name, times: Math.max(1, num(f.times.value)), desc: f.desc.value.trim() });
           } else {
-            c.talents.push({ name, times: Math.max(1, num(f.times.value)), desc: f.desc.value.trim() });
+            const times = Math.max(1, num(f.times.value));
+            const maxT = R.talentMax(c, store.findTalent(name)?.max);
+            if (maxT != null && times > maxT) { toast(`Maximum pour ce talent : ${maxT}`); return false; }
+            if (t) Object.assign(t, { name, times, desc: f.desc.value.trim() });
+            else c.talents.push({ name, times, desc: f.desc.value.trim() });
           }
           commit();
         } },

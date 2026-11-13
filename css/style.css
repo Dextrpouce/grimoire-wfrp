@@ -581,3 +581,16 @@ label.chip:has(input:checked) { background: var(--blood); color: #fbe9d3; border
 .ct-max { font-size: 13px; color: var(--green); font-weight: 700; padding: 0 8px; }
 .ct-pick:focus, .ct-pick:focus-visible { outline: none; }
 .xp-boxes[data-act] { cursor: pointer; }
+
+/* Niveau d'un talent dans la Fiche */
+.tlv { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-width: 42px; padding: 5px 6px;
+  border-radius: 10px; border: 1px solid var(--line); background: rgba(255, 255, 255, .35); line-height: 1; flex-shrink: 0; align-self: flex-start; }
+.tlv-k { font-family: var(--font-title); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); }
+.tlv b { font-family: var(--font-title); font-size: 18px; font-weight: 900; color: var(--ink); }
+.tlv.gold { border-color: var(--gold); background: linear-gradient(rgba(235, 198, 117, .35), rgba(255, 255, 255, .3)); }
+.tlv-pips { display: flex; gap: 3px; }
+.tlv-pips i { display: block; width: 6px; height: 6px; border-radius: 50%; border: 1px solid var(--parch-edge); }
+.tlv-pips i.on { background: var(--gold); border-color: var(--gold); }
+.tlv-of { font-size: 11px; color: var(--ink-soft); }
+.tlv.over { border-color: var(--blood); background: rgba(140, 28, 28, .08); }
+.tlv.over b { color: var(--blood); }
