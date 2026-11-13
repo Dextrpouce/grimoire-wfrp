@@ -254,9 +254,13 @@ const CAREER_FIGURES = {
   chasseur: ['chasseur'], marin: ['marin'], charlatan: ['charlatan'],
   sorcier: ['sorcier', 'sorciere', 'sorcier sauvage', 'sorciere de village'],
 };
-function figure(c) {
+const WIDE_FIGURES = ['sorcier'];
+function figureKey(c) {
   const n = R.norm(c.career?.name);
-  const key = Object.keys(CAREER_FIGURES).find((k) => CAREER_FIGURES[k].includes(n));
+  return Object.keys(CAREER_FIGURES).find((k) => CAREER_FIGURES[k].includes(n)) || null;
+}
+function figure(c) {
+  const key = figureKey(c);
   return key
     ? `<img class="fig career" src="img/carrieres/${key}.webp" alt="${esc(c.career.name)}" loading="lazy">`
     : '<img class="fig" src="img/armure.webp" alt="" loading="lazy">';
@@ -380,7 +384,7 @@ function viewSante(c) {
     <div class="stack">
       <section class="card">
         <h2>Points d'armure</h2>
-        <div class="body-map">
+        <div class="body-map ${WIDE_FIGURES.includes(figureKey(c)) ? 'wide-fig' : ''}">
           ${loc('tete')}${figure(c)}${loc('brasG')}
           ${loc('brasD')}${loc('corps')}
           ${loc('jambeD')}${loc('jambeG')}

@@ -288,6 +288,9 @@ nav.tabs button.active::before { content: ''; position: absolute; top: 0; left: 
 
 .body-map { display: grid; grid-template-columns: 1fr 120px 1fr; gap: 8px; align-items: center; }
 .body-map .fig { width: 120px; height: auto; max-height: 250px; object-fit: contain; grid-row: 1 / span 3; grid-column: 2; justify-self: center; }
+/* Illustration large (Sorcier : bâton et flamme de chaque côté) : colonne du milieu élargie */
+.body-map.wide-fig { grid-template-columns: minmax(0, 1fr) 176px minmax(0, 1fr); gap: 6px; }
+.body-map.wide-fig .fig { width: 176px; max-height: 260px; }
 .loc { text-align: center; padding: 6px 4px; border-radius: 10px; background: rgba(255, 255, 255, .3); border: 1px solid var(--line); }
 .loc .lr { font-size: 11px; color: var(--ink-soft); }
 .loc .ln { font-size: 13px; font-weight: 600; }
