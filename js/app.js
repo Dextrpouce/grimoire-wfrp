@@ -185,7 +185,7 @@ function undoLast(c) {
 
 const plusBtn = (c, cost, act, data, inCareer = true) => (cost <= avail(c)
   ? `<button class="plus ${inCareer ? '' : 'out'}" data-act="${act}" ${data} title="${inCareer ? '' : 'Hors carrière : coût doublé'}">${icon('plus')}${cost}</button>`
-  : `<span class="cost-na">${cost} XP</span>`);
+  : `<span class="cost-na" title="Il te manque ${cost - avail(c)} XP">${icon('plus')}${cost}</span>`);
 
 // ================= Rendu =================
 let welcomeOpened = false;

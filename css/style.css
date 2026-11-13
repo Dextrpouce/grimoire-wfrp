@@ -594,3 +594,8 @@ label.chip:has(input:checked) { background: var(--blood); color: #fbe9d3; border
 .tlv-of { font-size: 11px; color: var(--ink-soft); }
 .tlv.over { border-color: var(--blood); background: rgba(140, 28, 28, .08); }
 .tlv.over b { color: var(--blood); }
+
+/* Mode progression : coût hors de portée, affiché comme un bouton grisé (même forme que le bouton +) */
+.cost-na { display: inline-flex; align-items: center; gap: 2px; padding: 3px 9px; border-radius: 999px; border: 1px dashed var(--parch-edge);
+  font-size: 13px; font-weight: 700; color: var(--ink-soft); opacity: .85; white-space: nowrap; }
+.cost-na svg { width: 12px; height: 12px; opacity: .7; }
