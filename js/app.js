@@ -254,7 +254,6 @@ const CAREER_FIGURES = {
   chasseur: ['chasseur'], marin: ['marin'], charlatan: ['charlatan'],
   sorcier: ['sorcier', 'sorciere', 'sorcier sauvage', 'sorciere de village'],
 };
-const WIDE_FIGURES = ['sorcier'];
 function figureKey(c) {
   const n = R.norm(c.career?.name);
   return Object.keys(CAREER_FIGURES).find((k) => CAREER_FIGURES[k].includes(n)) || null;
@@ -384,7 +383,7 @@ function viewSante(c) {
     <div class="stack">
       <section class="card">
         <h2>Points d'armure</h2>
-        <div class="body-map ${WIDE_FIGURES.includes(figureKey(c)) ? 'wide-fig' : ''}">
+        <div class="body-map ${figureKey(c) === 'sorcier' ? 'wide-fig' : ''}">
           ${loc('tete')}${figure(c)}${loc('brasG')}
           ${loc('brasD')}${loc('corps')}
           ${loc('jambeD')}${loc('jambeG')}
