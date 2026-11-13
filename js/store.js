@@ -134,6 +134,11 @@ export const store = {
     // Fichier de carrières : { format: 'whfrp4-careers', careers: [...] }
     if (incoming.format === 'whfrp4-careers') {
       let n = 0;
+      // « replace » : retire d'abord tes propres carrières absentes du fichier
+      if (incoming.replace) {
+        const keep = new Set((incoming.careers || []).map((t) => normName(t.name)));
+        for (const t of this.careers()) if (this.canEditCareer(t) && !keep.has(normName(t.name))) this.removeCareer(t.id);
+      }
       for (const t of incoming.careers || []) {
         if (!t?.name || !Array.isArray(t.levels)) continue;
         const existing = this.findCareer(t.name);
