@@ -1097,9 +1097,15 @@ const GROUP_ACTIONS = {
     const names = [...new Set([...Object.values(group.current?.members || {}), ...store.list().map((c) => c.name)])];
     openDialog({
       title: d ? `Dette : ${d.who}` : 'Nouvelle dette',
-      body: `${F.text('who', 'Qui doit', d?.who || '', 'full', 'list="gNames" autofocus')}<datalist id="gNames">${names.map((n) => `<option value="${esc(n)}">`).join('')}</datalist>
+      body: `${F.text('who', 'Qui doit', d?.who || '', 'full', 'autocomplete="off"')}
+        ${names.length ? `<div class="g-names">${names.map((n) => `<button type="button" class="chip" data-name="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : ''}
         ${moneyFields(d?.amount)}${F.text('note', 'Motif', d?.note || '', 'full', 'placeholder="ex. Avance pour une épée"')}
         ${d ? '' : '<label class="row small"><input type="checkbox" name="out" checked style="width:auto"> L\'argent sort de la caisse (avance)</label>'}`,
+      // Toucher un nom remplit le champ ; toucher le champ sélectionne tout le texte
+      onOpen: (f) => {
+        f.who.addEventListener('focus', () => f.who.select());
+        f.querySelectorAll('.g-names .chip').forEach((b) => b.addEventListener('click', () => { f.who.value = b.dataset.name; }));
+      },
       actions: [
         ...(d ? [{ label: icon('trash'), cls: 'ghost', onClick: () => { gDo((st) => { st.debts = st.debts.filter((x) => x.id !== d.id); return `Dette de ${d.who} (${fmtMoney(d.amount)}) supprimée`; }); } }, 'spacer'] : []),
         cancel,
