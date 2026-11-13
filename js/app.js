@@ -292,7 +292,7 @@ function viewFiche(c) {
 // Gravure de Viollet-le-Duc (1874, domaine public), passée en encre sépia
 // Illustration propre à la carrière quand elle existe (img/carrieres), sinon la gravure
 const CAREER_FIGURES = {
-  chasseur: ['chasseur'], marin: ['marin'], charlatan: ['charlatan'],
+  chasseur: ['chasseur'], marin: ['marin', 'batelier'], charlatan: ['charlatan'],
   sorcier: ['sorcier', 'sorciere', 'sorcier sauvage', 'sorciere de village'],
 };
 function figureKey(c) {
