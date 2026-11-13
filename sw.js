@@ -1,9 +1,9 @@
 // Service worker : garde l'appli en cache pour qu'elle fonctionne sans internet.
-const VERSION = 'v60';
+const VERSION = 'v61';
 const CACHE = `grimoire-${VERSION}`;
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
-  'js/app.js', 'js/rules.js', 'js/store.js', 'js/cloud.js', 'js/config.js',
+  'js/app.js', 'js/rules.js', 'js/store.js', 'js/cloud.js', 'js/config.js', 'js/group.js',
   'icons/favicon-64.png', 'icons/icon-192.png', 'icons/icon-512.png', 'img/chaos.webp', 'img/sigmar.webp', 'img/armure.webp',
   'img/carrieres/chasseur.webp', 'img/carrieres/marin.webp', 'img/carrieres/charlatan.webp', 'img/carrieres/sorcier.webp',
 ];

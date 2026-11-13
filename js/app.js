@@ -1,5 +1,6 @@
 import * as R from './rules.js';
 import { store } from './store.js';
+import { group, uid as gid } from './group.js';
 
 // ================= Utilitaires =================
 const $app = document.getElementById('app');
@@ -67,7 +68,7 @@ const MODES = {
 
 const TABS = [
   ['fiche', 'Fiche', 'sheet'], ['sante', 'Combat', 'sword'], ['magie', 'Magie', 'wand'], ['sac', 'Sac', 'bag'],
-  ['prog', 'Progrès', 'up'], ['carnet', 'Carnet', 'book'], ['biblio', 'Biblio', 'library'],
+  ['prog', 'Progrès', 'up'], ['carnet', 'Carnet', 'book'], ['groupe', 'Groupe', 'users'], ['biblio', 'Biblio', 'library'],
 ];
 
 // ================= Champs de formulaire =================
@@ -945,10 +946,338 @@ function viewMagie(c) {
   </div>`;
 }
 
-const VIEWS = { fiche: viewFiche, sante: viewSante, sac: viewSac, prog: viewProg, carnet: viewCarnet, magie: viewMagie, biblio: viewBiblio };
+// ---------- Groupe (caisse, dettes, matériel… partagés et journalisés) ----------
+const toSC = (m) => num(m?.co) * 240 + num(m?.pa) * 12 + num(m?.sc);
+const fromSC = (t) => ({ co: Math.floor(t / 240), pa: Math.floor((t % 240) / 12), sc: t % 12 });
+const fmtMoney = (m) => {
+  const parts = [[num(m?.co), 'CO'], [num(m?.pa), 'PA'], [num(m?.sc), 'SC']].filter(([v]) => v).map(([v, k]) => `${v} ${k}`);
+  return parts.join(' ') || '0';
+};
+const moneyFields = (m = {}) => `<div class="fields four">${F.num('co', 'CO', m.co || '')}${F.num('pa', 'PA', m.pa || '')}${F.num('sc', 'SC', m.sc || '')}</div>`;
+const moneyOf = (f) => ({ co: num(f.co.value), pa: num(f.pa.value), sc: num(f.sc.value) });
+const groupAuthor = () => C()?.name || store.userEmail || 'Joueur';
+async function gDo(fn) {
+  try { await group.update(fn, groupAuthor()); } catch (e) { toast(e.message || 'Modification impossible'); }
+}
+const gDate = (t) => new Date(t).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) + ' ' + new Date(t).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+function viewGroupe() {
+  const g = group.current;
+  if (!g) {
+    return `<div class="grid two"><section class="card">
+      <h2>Groupe</h2>
+      <p>La <b>caisse</b>, les <b>dettes</b>, le <b>matériel commun</b>, les objets <b>à vendre</b> ou <b>de quête</b> et le <b>personnel</b> du groupe, partagés entre tous les joueurs. Chacun peut modifier, et tout est noté dans un journal.</p>
+      ${store.userEmail ? `<div class="row" style="margin-top:12px">
+          <button class="btn gold" style="flex:1" data-act="gCreate">${icon('plus')} Créer le groupe</button>
+          <button class="btn" style="flex:1" data-act="gJoin">Rejoindre avec un code</button>
+        </div>
+        <p class="small muted" style="margin:10px 0 0">Un seul joueur crée le groupe, puis donne le code aux autres.</p>`
+      : `<p class="small muted">Connecte-toi d'abord avec le nuage, en haut à droite.</p><button class="btn block" data-act="syncNow">${icon('cloud')} Se connecter</button>`}
+    </section></div>`;
+  }
+  const s = group.state;
+  const row = (inner, act, id) => `<div class="g-row" ${act ? `data-act="${act}" data-id="${id}" role="button"` : ''}>${inner}</div>`;
+  const places = [...new Set(s.items.map((it) => it.place || ''))].sort((a, b) => (a ? a.localeCompare(b, 'fr') : 1));
+  const items = places.map((p) => `${places.length > 1 || p ? `<div class="g-place">${esc(p || 'Sans lieu')}</div>` : ''}${s.items.filter((it) => (it.place || '') === p).map((it) => `
+      <div class="g-row"><span class="g-main" data-act="gItem" data-id="${it.id}" role="button"><b>${esc(it.name)}</b>${it.note ? `<span class="small muted">${esc(it.note)}</span>` : ''}</span>
+        <span class="g-qty"><button class="qty-btn" data-act="gQty" data-id="${it.id}" data-d="-1" aria-label="Moins">−</button><b>${num(it.qty)}</b><button class="qty-btn" data-act="gQty" data-id="${it.id}" data-d="1" aria-label="Plus">+</button></span></div>`).join('')}`).join('');
+  return `${group.online ? '' : `<div class="lvl-banner">${icon('cloud')}<span>${group.error ? esc(group.error) : 'Hors ligne : tu vois la dernière version connue. Connecte-toi pour modifier.'}</span></div>`}
+  <div class="grid two">
+    <div class="stack">
+      <section class="card">
+        <h2>Caisse du groupe</h2>
+        <div class="g-coins">
+          <div class="coin co"><div class="disc">CO</div><div class="g-val">${num(s.money.co)}</div><div class="small muted">Couronnes d'or</div></div>
+          <div class="coin pa"><div class="disc">PA</div><div class="g-val">${num(s.money.pa)}</div><div class="small muted">Pistoles d'argent</div></div>
+          <div class="coin sc"><div class="disc">SC</div><div class="g-val">${num(s.money.sc)}</div><div class="small muted">Sous de cuivre</div></div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn" style="flex:1" data-act="gMoney" data-mode="pay">Payer</button>
+          <button class="btn green" style="flex:1" data-act="gMoney" data-mode="gain">Recevoir</button>
+        </div>
+      </section>
+      <section class="card">
+        <h2>Dettes envers la caisse</h2>
+        ${s.debts.map((d) => `<div class="g-row"><span class="g-main" data-act="gDebt" data-id="${d.id}" role="button"><b>${esc(d.who)}</b>${d.note ? `<span class="small muted">${esc(d.note)}</span>` : ''}</span>
+          <span class="g-amt">${fmtMoney(d.amount)}</span><button class="btn small green" data-act="gRepay" data-id="${d.id}">Remboursé</button></div>`).join('') || '<div class="empty">Aucune dette.</div>'}
+        <div class="add-row"><button class="btn ghost small" data-act="gDebt" data-id="">${icon('plus')} Dette</button></div>
+      </section>
+      <section class="card">
+        <h2>Personnel et frais réguliers</h2>
+        ${s.staff.map((p) => `<div class="g-row"><span class="g-main" data-act="gStaff" data-id="${p.id}" role="button"><b>${esc(p.name)}</b><span class="small muted">${fmtMoney(p.cost)} / ${esc(p.period || 'mois')}${p.lastPaid ? ` · payé le ${new Date(p.lastPaid).toLocaleDateString('fr-FR')}` : ''}</span></span>
+          <button class="btn small" data-act="gStaffPay" data-id="${p.id}">Payer</button></div>`).join('') || '<div class="empty">Personne pour l\'instant.</div>'}
+        <div class="add-row"><button class="btn ghost small" data-act="gStaff" data-id="">${icon('plus')} Personnel ou frais</button></div>
+      </section>
+    </div>
+    <div class="stack">
+      <section class="card">
+        <h2>Matériel commun</h2>
+        ${items || '<div class="empty">Aucun objet.</div>'}
+        <div class="add-row"><button class="btn ghost small" data-act="gItem" data-id="">${icon('plus')} Objet</button></div>
+      </section>
+      <section class="card">
+        <h2>À vendre</h2>
+        ${s.sale.map((it) => `<div class="g-row"><span class="g-main" data-act="gSale" data-id="${it.id}" role="button"><b>${esc(it.name)}</b>${it.note ? `<span class="small muted">${esc(it.note)}</span>` : ''}</span>
+          ${toSC(it.price) ? `<span class="g-amt">≈ ${fmtMoney(it.price)}</span>` : ''}<button class="btn small green" data-act="gSold" data-id="${it.id}">Vendu</button></div>`).join('') || '<div class="empty">Rien à vendre.</div>'}
+        <div class="add-row"><button class="btn ghost small" data-act="gSale" data-id="">${icon('plus')} Objet à vendre</button></div>
+      </section>
+      <section class="card">
+        <h2>Objets de quête</h2>
+        ${s.quest.map((it) => row(`<span class="g-main"><b>${esc(it.name)}</b>${it.note ? `<span class="small muted">${esc(it.note)}</span>` : ''}</span>`, 'gQuest', it.id)).join('') || '<div class="empty">Aucun objet de quête.</div>'}
+        <div class="add-row"><button class="btn ghost small" data-act="gQuest" data-id="">${icon('plus')} Objet de quête</button></div>
+      </section>
+      <section class="card">
+        <h2>Journal</h2>
+        ${s.log.slice(0, 12).map((l) => `<div class="g-log"><span class="small muted">${gDate(l.date)} · ${esc(l.who)}</span><span>${esc(l.text)}</span></div>`).join('') || '<div class="empty">Rien pour l\'instant.</div>'}
+        ${s.log.length > 12 ? `<div class="add-row"><button class="btn ghost small" data-act="gLog">Tout le journal (${s.log.length})</button></div>` : ''}
+      </section>
+      <section class="card">
+        <h2>${esc(g.name || 'Groupe')}</h2>
+        <p style="margin:0 0 6px">Code à donner aux autres joueurs :</p>
+        <div class="row"><code class="g-code">${esc(g.id)}</code><button class="btn small" data-act="gCopy">Copier</button></div>
+        ${Object.keys(g.members || {}).length ? `<p class="small muted" style="margin:10px 0 0">Membres : ${Object.values(g.members).map(esc).join(', ')}</p>` : ''}
+        <div class="add-row"><button class="btn ghost small" style="color:var(--blood)" data-act="gLeave">Quitter le groupe</button></div>
+      </section>
+    </div>
+  </div>`;
+}
+
+const GROUP_ACTIONS = {
+  gCreate() {
+    openDialog({
+      title: 'Créer le groupe',
+      body: F.text('name', 'Nom du groupe', '', 'full', 'autofocus placeholder="ex. Les Loups du Reik"'),
+      actions: [cancel, { label: 'Créer', primary: true, onClick: (f) => {
+        const name = f.name.value.trim() || 'Notre groupe';
+        group.create(name).then((id) => { render(); toast(`Groupe créé : code ${id}`); }).catch((e) => toast(e.message));
+      } }],
+    });
+  },
+  gJoin() {
+    openDialog({
+      title: 'Rejoindre un groupe',
+      body: F.text('code', 'Code du groupe', '', 'full', 'autofocus autocapitalize="characters" placeholder="ex. K7M2QP9X"'),
+      actions: [cancel, { label: 'Rejoindre', primary: true, onClick: (f) => {
+        group.join(f.code.value).then((name) => { render(); toast(`Bienvenue dans ${name}`); }).catch((e) => toast(e.message));
+      } }],
+    });
+  },
+  gLeave() {
+    confirmDialog('Quitter le groupe ?', 'Tu ne verras plus la caisse ni le matériel du groupe sur cet appareil. Tu pourras revenir avec le code.', 'Quitter', () => { group.leave().then(render); });
+  },
+  async gCopy() {
+    const code = group.current?.id || '';
+    try { await navigator.clipboard.writeText(code); toast('Code copié'); } catch { toast(`Code : ${code}`); }
+  },
+  gMoney(el) {
+    const gain = el.dataset.mode === 'gain';
+    openDialog({
+      title: gain ? 'Recevoir dans la caisse' : 'Payer avec la caisse',
+      body: `${moneyFields()}${F.text('note', 'Motif', '', 'full', `placeholder="${gain ? 'ex. Récompense du bourgmestre' : 'ex. Réparation du bateau'}"`)}`,
+      actions: [cancel, { label: gain ? 'Recevoir' : 'Payer', cls: gain ? 'green' : '', primary: true, onClick: (f) => {
+        const m = moneyOf(f); const amt = toSC(m); const note = f.note.value.trim();
+        if (!amt) { toast('Indique un montant'); return false; }
+        if (!note) { toast('Indique le motif (pour le journal)'); return false; }
+        gDo((s) => {
+          if (gain) { s.money = { co: num(s.money.co) + m.co, pa: num(s.money.pa) + m.pa, sc: num(s.money.sc) + m.sc }; return `+${fmtMoney(m)} dans la caisse : ${note}`; }
+          if (amt > toSC(s.money)) { toast('Pas assez dans la caisse'); return null; }
+          s.money = fromSC(toSC(s.money) - amt); return `−${fmtMoney(m)} payés : ${note}`;
+        });
+      } }],
+    });
+  },
+  gDebt(el) {
+    const s = group.state; const d = s.debts.find((x) => x.id === el.dataset.id);
+    const names = [...new Set([...Object.values(group.current?.members || {}), ...store.list().map((c) => c.name)])];
+    openDialog({
+      title: d ? `Dette : ${d.who}` : 'Nouvelle dette',
+      body: `${F.text('who', 'Qui doit', d?.who || '', 'full', 'list="gNames" autofocus')}<datalist id="gNames">${names.map((n) => `<option value="${esc(n)}">`).join('')}</datalist>
+        ${moneyFields(d?.amount)}${F.text('note', 'Motif', d?.note || '', 'full', 'placeholder="ex. Avance pour une épée"')}
+        ${d ? '' : '<label class="row small"><input type="checkbox" name="out" checked style="width:auto"> L\'argent sort de la caisse (avance)</label>'}`,
+      actions: [
+        ...(d ? [{ label: icon('trash'), cls: 'ghost', onClick: () => { gDo((st) => { st.debts = st.debts.filter((x) => x.id !== d.id); return `Dette de ${d.who} (${fmtMoney(d.amount)}) supprimée`; }); } }, 'spacer'] : []),
+        cancel,
+        { label: 'Enregistrer', primary: true, onClick: (f) => {
+          const who = f.who.value.trim(); const m = moneyOf(f); const note = f.note.value.trim();
+          if (!who || !toSC(m)) { toast('Indique qui doit et combien'); return false; }
+          gDo((st) => {
+            if (d) {
+              const x = st.debts.find((y) => y.id === d.id); if (!x) return null;
+              Object.assign(x, { who, amount: m, note }); return `Dette de ${who} corrigée : ${fmtMoney(m)}`;
+            }
+            const out = f.out?.checked;
+            if (out && toSC(m) > toSC(st.money)) { toast('Pas assez dans la caisse pour cette avance'); return null; }
+            if (out) st.money = fromSC(toSC(st.money) - toSC(m));
+            st.debts.push({ id: gid(), who, amount: m, note });
+            return `${who} doit ${fmtMoney(m)} à la caisse${note ? ` : ${note}` : ''}${out ? ' (sorti de la caisse)' : ''}`;
+          });
+        } },
+      ],
+    });
+  },
+  gRepay(el) {
+    const d = group.state.debts.find((x) => x.id === el.dataset.id); if (!d) return;
+    openDialog({
+      title: `Remboursement : ${d.who}`,
+      body: `<p class="small muted" style="margin:0 0 8px">Reste dû : <b>${fmtMoney(d.amount)}</b>. Le montant remboursé entre dans la caisse.</p>${moneyFields(d.amount)}`,
+      actions: [cancel, { label: 'Rembourser', cls: 'green', primary: true, onClick: (f) => {
+        const m = moneyOf(f); const amt = toSC(m);
+        if (!amt) return false;
+        gDo((st) => {
+          const x = st.debts.find((y) => y.id === d.id); if (!x) return null;
+          const pay = Math.min(amt, toSC(x.amount));
+          st.money = { co: num(st.money.co) + m.co, pa: num(st.money.pa) + m.pa, sc: num(st.money.sc) + m.sc };
+          const rest = toSC(x.amount) - pay;
+          if (rest <= 0) st.debts = st.debts.filter((y) => y.id !== d.id); else x.amount = fromSC(rest);
+          return `${d.who} rembourse ${fmtMoney(m)}${rest > 0 ? ` (reste ${fmtMoney(fromSC(rest))})` : ' : dette soldée'}`;
+        });
+      } }],
+    });
+  },
+  gItem(el) {
+    const s = group.state; const it = s.items.find((x) => x.id === el.dataset.id);
+    const places = [...new Set(s.items.map((x) => x.place).filter(Boolean))];
+    const c = C();
+    openDialog({
+      title: it ? it.name : 'Objet commun',
+      body: `<div class="fields">${F.text('name', 'Nom', it?.name || '', 'full', 'autofocus')}${F.num('qty', 'Quantité', it?.qty ?? 1)}
+        ${F.text('place', 'Lieu', it?.place || '', '', 'list="gPlaces" placeholder="ex. Bateau"')}${F.text('note', 'Note', it?.note || '', 'full', 'placeholder="ex. Soigne 1d6+1"')}</div>
+        <datalist id="gPlaces">${places.map((p) => `<option value="${esc(p)}">`).join('')}</datalist>
+        ${it && c && num(it.qty) > 0 ? `<button type="button" class="btn block" id="gGive" style="margin-top:6px">Donner 1 à ${esc(c.name)} (Sac)</button>` : ''}`,
+      onOpen: (f) => f.querySelector('#gGive')?.addEventListener('click', () => {
+        dlg.close();
+        gDo((st) => {
+          const x = st.items.find((y) => y.id === it.id); if (!x || num(x.qty) < 1) return null;
+          x.qty = num(x.qty) - 1;
+          if (x.qty <= 0) st.items = st.items.filter((y) => y.id !== it.id);
+          const mine = c.items.find((y) => R.norm(y.name) === R.norm(it.name));
+          if (mine) mine.qty = num(mine.qty) + 1; else c.items.push({ name: it.name, qty: 1, enc: 0, notes: it.note || '' });
+          commit(false);
+          return `${it.name} donné à ${c.name}`;
+        });
+      }),
+      actions: [
+        ...(it ? [{ label: icon('trash'), cls: 'ghost', onClick: () => { gDo((st) => { st.items = st.items.filter((x) => x.id !== it.id); return `${it.name} retiré du matériel`; }); } }, 'spacer'] : []),
+        cancel,
+        { label: 'Enregistrer', primary: true, onClick: (f) => {
+          const v = { name: f.name.value.trim(), qty: Math.max(0, num(f.qty.value)), place: f.place.value.trim(), note: f.note.value.trim() };
+          if (!v.name) { toast('Donne un nom à l\'objet'); return false; }
+          gDo((st) => {
+            if (it) { const x = st.items.find((y) => y.id === it.id); if (!x) return null; const before = num(x.qty); Object.assign(x, v); return `${v.name} modifié${before !== v.qty ? ` (${before} → ${v.qty})` : ''}`; }
+            st.items.push({ id: gid(), ...v }); return `${v.qty} × ${v.name} ajouté au matériel${v.place ? ` (${v.place})` : ''}`;
+          });
+        } },
+      ],
+    });
+  },
+  gQty(el) {
+    const d = +el.dataset.d;
+    gDo((st) => {
+      const x = st.items.find((y) => y.id === el.dataset.id); if (!x) return null;
+      const before = num(x.qty); const after = Math.max(0, before + d);
+      if (after === before) return null;
+      x.qty = after; return `${x.name} : ${before} → ${after}`;
+    });
+  },
+  gSale(el) {
+    const it = group.state.sale.find((x) => x.id === el.dataset.id);
+    openDialog({
+      title: it ? it.name : 'Objet à vendre',
+      body: `${F.text('name', 'Nom', it?.name || '', 'full', 'autofocus')}<div class="flabel">Prix estimé</div>${moneyFields(it?.price)}${F.text('note', 'Note', it?.note || '', 'full')}`,
+      actions: [
+        ...(it ? [{ label: icon('trash'), cls: 'ghost', onClick: () => { gDo((st) => { st.sale = st.sale.filter((x) => x.id !== it.id); return `${it.name} retiré des ventes`; }); } }, 'spacer'] : []),
+        cancel,
+        { label: 'Enregistrer', primary: true, onClick: (f) => {
+          const v = { name: f.name.value.trim(), price: moneyOf(f), note: f.note.value.trim() };
+          if (!v.name) { toast('Donne un nom à l\'objet'); return false; }
+          gDo((st) => {
+            if (it) { const x = st.sale.find((y) => y.id === it.id); if (!x) return null; Object.assign(x, v); return `${v.name} (à vendre) modifié`; }
+            st.sale.push({ id: gid(), ...v }); return `${v.name} mis en vente${toSC(v.price) ? ` (≈ ${fmtMoney(v.price)})` : ''}`;
+          });
+        } },
+      ],
+    });
+  },
+  gSold(el) {
+    const it = group.state.sale.find((x) => x.id === el.dataset.id); if (!it) return;
+    openDialog({
+      title: `Vendu : ${it.name}`,
+      body: `<p class="small muted" style="margin:0 0 8px">Prix réel de la vente : il entre dans la caisse.</p>${moneyFields(it.price)}`,
+      actions: [cancel, { label: 'Vendu', cls: 'green', primary: true, onClick: (f) => {
+        const m = moneyOf(f);
+        gDo((st) => {
+          if (!st.sale.some((y) => y.id === it.id)) return null;
+          st.sale = st.sale.filter((y) => y.id !== it.id);
+          st.money = { co: num(st.money.co) + m.co, pa: num(st.money.pa) + m.pa, sc: num(st.money.sc) + m.sc };
+          return `${it.name} vendu ${fmtMoney(m)}`;
+        });
+      } }],
+    });
+  },
+  gQuest(el) {
+    const it = group.state.quest.find((x) => x.id === el.dataset.id);
+    openDialog({
+      title: it ? it.name : 'Objet de quête',
+      body: `${F.text('name', 'Nom', it?.name || '', 'full', 'autofocus placeholder="ex. Médaillon Septenarius"')}${F.area('note', 'Note', it?.note || '', 'full')}`,
+      actions: [
+        ...(it ? [{ label: icon('trash'), cls: 'ghost', onClick: () => { gDo((st) => { st.quest = st.quest.filter((x) => x.id !== it.id); return `${it.name} retiré des objets de quête`; }); } }, 'spacer'] : []),
+        cancel,
+        { label: 'Enregistrer', primary: true, onClick: (f) => {
+          const v = { name: f.name.value.trim(), note: f.note.value.trim() };
+          if (!v.name) { toast('Donne un nom à l\'objet'); return false; }
+          gDo((st) => {
+            if (it) { const x = st.quest.find((y) => y.id === it.id); if (!x) return null; Object.assign(x, v); return `Objet de quête modifié : ${v.name}`; }
+            st.quest.push({ id: gid(), ...v }); return `Objet de quête ajouté : ${v.name}`;
+          });
+        } },
+      ],
+    });
+  },
+  gStaff(el) {
+    const p = group.state.staff.find((x) => x.id === el.dataset.id);
+    openDialog({
+      title: p ? p.name : 'Personnel ou frais',
+      body: `${F.text('name', 'Nom', p?.name || '', 'full', 'autofocus placeholder="ex. 1 marin"')}<div class="flabel">Coût</div>${moneyFields(p?.cost)}${F.text('period', 'Par', p?.period || 'mois', 'full', 'placeholder="mois, semaine…"')}`,
+      actions: [
+        ...(p ? [{ label: icon('trash'), cls: 'ghost', onClick: () => { gDo((st) => { st.staff = st.staff.filter((x) => x.id !== p.id); return `${p.name} retiré du personnel`; }); } }, 'spacer'] : []),
+        cancel,
+        { label: 'Enregistrer', primary: true, onClick: (f) => {
+          const v = { name: f.name.value.trim(), cost: moneyOf(f), period: f.period.value.trim() || 'mois' };
+          if (!v.name) { toast('Donne un nom'); return false; }
+          gDo((st) => {
+            if (p) { const x = st.staff.find((y) => y.id === p.id); if (!x) return null; Object.assign(x, v); return `${v.name} modifié : ${fmtMoney(v.cost)} / ${v.period}`; }
+            st.staff.push({ id: gid(), ...v }); return `${v.name} ajouté : ${fmtMoney(v.cost)} / ${v.period}`;
+          });
+        } },
+      ],
+    });
+  },
+  gStaffPay(el) {
+    const p = group.state.staff.find((x) => x.id === el.dataset.id); if (!p) return;
+    confirmDialog(`Payer ${esc(p.name)} ?`, `<b>${fmtMoney(p.cost)}</b> sortiront de la caisse (${esc(p.period || 'mois')}).`, 'Payer', () => {
+      gDo((st) => {
+        const x = st.staff.find((y) => y.id === p.id); if (!x) return null;
+        if (toSC(x.cost) > toSC(st.money)) { toast('Pas assez dans la caisse'); return null; }
+        st.money = fromSC(toSC(st.money) - toSC(x.cost)); x.lastPaid = Date.now();
+        return `${x.name} payé : ${fmtMoney(x.cost)} (${x.period || 'mois'})`;
+      });
+    });
+  },
+  gLog() {
+    const log = group.state.log;
+    openDialog({
+      title: 'Journal du groupe',
+      body: `<div class="g-logall">${log.map((l) => `<div class="g-log"><span class="small muted">${gDate(l.date)} · ${esc(l.who)}</span><span>${esc(l.text)}</span></div>`).join('')}</div>`,
+      actions: [{ label: 'Fermer', cls: 'ghost', primary: true }],
+    });
+  },
+};
+
+const VIEWS = { fiche: viewFiche, sante: viewSante, sac: viewSac, prog: viewProg, carnet: viewCarnet, magie: viewMagie, groupe: viewGroupe, biblio: viewBiblio };
 
 // ================= Actions =================
 const A = {
+  ...GROUP_ACTIONS,
   tab(el) { ui.tab = el.dataset.tab; localStorage.setItem('whfrp4.tab', ui.tab); window.scrollTo(0, 0); render(); },
   toggleLevelUp() { A.setMode({ dataset: { m: ui.levelUp ? 'normal' : 'prog' } }); },
   modeMenu() {
@@ -2366,7 +2695,13 @@ $app.addEventListener('submit', (e) => {
   commit();
 });
 
+// Groupe : suivi en direct dès qu'on est connecté ; réaffiche l'onglet à chaque changement venu d'un autre joueur
+group.onChange(() => {
+  const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
+  if (ui.tab === 'groupe' && !typing && !dlg.open && C()) render();
+});
 store.onStatus((st, info) => {
+  group.refresh();
   const btn = document.getElementById('syncBtn');
   if (btn) { btn.className = `icon-btn sync-${st.state}`; btn.title = st.message; }
   const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
