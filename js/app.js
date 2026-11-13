@@ -280,7 +280,7 @@ function viewSante(c) {
     : '<span class="small muted">—</span>';
 
   // Attaques : chaque arme + les mains nues
-  const weapons = [...c.weapons.map((w, i) => ({ w, i })), { w: { name: 'Mains nues', group: 'Bagarre', reach: 'Personnelle', damage: 'BF+0', qualities: 'Inoffensive' }, i: -1 }];
+  const weapons = [...c.weapons.map((w, i) => ({ w, i })), { w: { name: 'Mains nues', group: 'Bagarre', reach: 'Personnelle', damage: 'BF+0' }, i: -1 }];
   const tg = combatTalentGroups(c);
   const attacks = weapons.map(({ w, i }) => {
     const ws = R.weaponSkill(c, w);
@@ -289,9 +289,8 @@ function viewSante(c) {
     if (R.hasQuality(w, 'acc10')) bonus.push(['+10', 'Précise']);
     if (adv) bonus.push([`+${adv * 10}`, 'Avantage']);
     const eff = ws.value + (R.hasQuality(w, 'acc10') ? 10 : 0) + adv * 10;
-    const dr = (R.hasQuality(w, 'hit+1') ? 1 : 0) - (R.hasQuality(w, 'hit-1') ? 1 : 0);
-    const detail = bonus.length || dr
-      ? `<div class="atk-bonus">${bonus.length ? `${ws.value} ${bonus.map(([v, n]) => `<b>${v}</b> ${n}`).join(' ')}` : ''}${dr ? ` <b class="${dr > 0 ? 'pro' : 'con'}">${dr > 0 ? '+' : ''}${dr} DR</b> si touché` : ''}</div>`
+    const detail = bonus.length
+      ? `<div class="atk-bonus">${ws.value} ${bonus.map(([v, n]) => `<b>${v}</b> ${n}`).join(' ')}</div>`
       : '';
     return `<div class="attack" data-act="rollAttack" data-i="${i}" role="button">
       <div class="atk-main"><div class="li-title">${esc(w.name)}</div>
@@ -305,13 +304,14 @@ function viewSante(c) {
 
   // Défense et ordre d'action
   const dodge = c.skills.find((s) => R.norm(s.name) === 'esquive');
-  const melee = c.weapons.filter((w) => !R.weaponSkill(c, w).ranged).sort((a, b) => R.weaponSkill(c, b).value - R.weaponSkill(c, a).value || R.hasQuality(b, 'parry+1') - R.hasQuality(a, 'parry+1')).map((w) => R.weaponSkill(c, w))[0]
-    || R.weaponSkill(c, { group: 'Base', reach: 'Moyenne' });
-  const parryW = c.weapons.filter((w) => !R.weaponSkill(c, w).ranged).sort((a, b) => R.weaponSkill(c, b).value - R.weaponSkill(c, a).value || R.hasQuality(b, 'parry+1') - R.hasQuality(a, 'parry+1'))[0];
-  const parryDef = !!parryW && R.hasQuality(parryW, 'parry+1');
+  // Parade : l'arme de mêlée la plus haute, bonus Défensive (+10) compris
+  const parryW = c.weapons.filter((w) => !R.weaponSkill(c, w).ranged)
+    .sort((a, b) => (R.weaponSkill(c, b).value + R.parryBonus(b)) - (R.weaponSkill(c, a).value + R.parryBonus(a)))[0];
+  const melee = parryW ? R.weaponSkill(c, parryW) : R.weaponSkill(c, { group: 'Base', reach: 'Moyenne' });
+  const parryDef = parryW ? R.parryBonus(parryW) : 0;
   const defense = `<div class="stats-row def-row">
       <div class="stat roll" data-act="rollSkill" data-id="${dodge?.id || ''}" role="button"><div class="sk">Esquive</div><div class="sv">${dodge ? R.skillValue(c, dodge) + adv * 10 : '–'}</div>${dodge && adv ? `<div class="def-bonus">${R.skillValue(c, dodge)} +${adv * 10} Av.</div>` : ''}</div>
-      <div class="stat roll" data-act="rollParry" role="button"><div class="sk">Parade</div><div class="sv">${melee.value + adv * 10}</div>${adv || parryDef ? `<div class="def-bonus">${adv ? `${melee.value} +${adv * 10} Av.` : ''}${parryDef ? ' <b>+1 DR</b>' : ''}</div>` : ''}</div>
+      <div class="stat roll" data-act="rollParry" role="button"><div class="sk">Parade</div><div class="sv">${melee.value + parryDef + adv * 10}</div>${adv || parryDef ? `<div class="def-bonus">${melee.value}${parryDef ? ` +${parryDef} Défensive` : ''}${adv ? ` +${adv * 10} Av.` : ''}</div>` : ''}</div>
       ${(() => {
         const ir = c.health.initRoll;
         return ir
@@ -1026,9 +1026,10 @@ const A = {
   rollParry() {
     const c = C();
     const best = c.weapons.filter((w) => !R.weaponSkill(c, w).ranged).map((w) => ({ w, s: R.weaponSkill(c, w) }))
-      .sort((a, b) => b.s.value - a.s.value || R.hasQuality(b.w, 'parry+1') - R.hasQuality(a.w, 'parry+1'))[0];
+      .sort((a, b) => (b.s.value + R.parryBonus(b.w)) - (a.s.value + R.parryBonus(a.w)))[0];
     const s = best?.s || R.weaponSkill(c, { group: 'Base', reach: 'Moyenne' });
-    openRoll({ title: `Parade${best ? ` : ${best.w.name}` : ''}`, label: s.label, base: s.value, combat: true, parryWeapon: best?.w || null });
+    const pb = best ? R.parryBonus(best.w) : 0;
+    openRoll({ title: `Parade${best ? ` : ${best.w.name}` : ''}`, label: s.label + (pb ? ` · Défensive +${pb}` : ''), base: s.value + pb, combat: true, parryWeapon: best?.w || null });
   },
   rollSkill(el) {
     const c = C(); const s = c.skills.find((x) => x.id === el.dataset.id);
@@ -1910,23 +1911,13 @@ function openRoll({ title, label, base, combat = false, weapon = null, parryWeap
       const show = (roll) => {
         const r = R.rollResult(target(), roll);
         last = r;
-        const units = r.roll % 10;
         const notes = [];
-        // Atouts / défauts appliqués automatiquement
-        if (weapon && r.success) {
-          if (R.hasQuality(weapon, 'hit+1')) { r.sl += 1; notes.push('Pointue : +1 DR'); }
-          if (R.hasQuality(weapon, 'hit-1')) { r.sl = Math.max(0, r.sl - 1); notes.push('Imprécise : −1 DR'); }
-          if (R.hasQuality(weapon, 'crit10') && units === 0 && !r.critical) { r.critical = true; notes.push('Empalé : critique sur un 0'); }
-        }
-        if (parryWeapon && r.success && R.hasQuality(parryWeapon, 'parry+1')) { r.sl += 1; notes.push(`Défensif (${parryWeapon.name}) : +1 DR`); }
         const verdict = r.critical ? 'Réussite critique !' : r.fumble ? 'Maladresse !' : r.success ? 'Réussite' : 'Échec';
         let extra = notes.length ? `<div class="roll-line q-auto">⚙ ${notes.map(esc).join(' · ')}</div>` : '';
         if (weapon && r.success) {
           const hit = R.hitLocation(r.roll);
           const d = R.weaponDamage(c, weapon);
-          let bonus = r.sl; let how = `${r.sl} DR`;
-          if (R.hasQuality(weapon, 'dmgBest') && units > r.sl) { bonus = units; how = `${units} (unités, Endommageant)`; }
-          if (R.hasQuality(weapon, 'dmgUnits')) { bonus += units; how += ` + ${units} (unités, Impact)`; }
+          const bonus = r.sl; const how = `${r.sl} DR`;
           extra += `<div class="roll-line">Touché : <b>${hit.name}</b> <span class="muted">(${String(hit.n).padStart(2, '0')})</span></div>
             <div class="roll-line">Dégâts : <b>${d != null ? `${d + bonus}` : `${esc(weapon.damage)} + ${bonus}`}</b> <span class="muted">(${d != null ? `${d} + ${how}` : `arme + ${how}`}) — avant BE et PA de la cible</span></div>
             ${r.critical ? '<div class="roll-line"><b>Coup critique</b> : jet sur la table des blessures critiques.</div>' : ''}`;

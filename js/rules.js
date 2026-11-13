@@ -308,35 +308,27 @@ export function weaponSkill(c, w) {
 // Atouts et défauts d'armes courants. « auto » = effet appliqué par le lanceur de dés ;
 // les autres sont rappelés dans le résultat. Résumés courts : voir le livre pour le détail.
 export const WEAPON_QUALITIES = [
+  // Liste de la version utilisée par le groupe. ⚙ seulement là où elle donne un chiffre (Précise, Défensive).
   // Atouts
-  // Version VF utilisée : « Précise » = +10 (appelée « Minutieux » dans l'autre traduction)
-  { name: 'Précise', kind: 'atout', auto: 'acc10', aliases: ['Minutieux', 'Minutieuse', 'Accurate'], desc: "+10 au test d'attaque avec cette arme." },
-  { name: 'Pointue', kind: 'atout', auto: 'hit+1', aliases: ['Precise'], desc: '+1 DR quand tu touches.' },
-  { name: 'Endommageant', kind: 'atout', auto: 'dmgBest', aliases: ['Dévastatrice', 'Endommageante'], desc: 'Dégâts : le plus élevé entre les DR et les unités du jet.' },
-  { name: 'Impact', kind: 'atout', auto: 'dmgUnits', aliases: ['Percutante'], desc: 'Ajoute les unités du jet aux dégâts.' },
-  { name: 'Empalé', kind: 'atout', auto: 'crit10', aliases: ['Empaleuse'], desc: 'Coup critique aussi sur un jet qui finit par 0.' },
-  { name: 'Défensif', kind: 'atout', auto: 'parry+1', aliases: ['Défensive'], desc: '+1 DR quand tu pares avec cette arme.' },
-  { name: 'Rapide', kind: 'atout', desc: "Frappe quand tu veux dans le round ; −10 pour s'en défendre (sauf arme Rapide)." },
-  { name: 'Pénétrant', kind: 'atout', aliases: ['Perforante'], desc: 'Ignore les PA non métalliques et 1 PA des autres armures.' },
-  { name: 'Entailler', kind: 'atout', aliases: ['Taillante'], desc: "Abîme d'un point l'armure ou le bouclier touché." },
-  { name: 'Contondante', kind: 'atout', aliases: ['Assommante'], desc: 'Coup à la tête : test opposé pour étourdir la cible.' },
-  { name: 'Enchevêtré', kind: 'atout', desc: 'La cible touchée est empêtrée ; tu choisis quand la relâcher.' },
-  { name: 'Enchevêtrante', kind: 'atout', aliases: ['Enchevêtrente', 'Enveloppante'], desc: 'Difficile à parer : −1 DR aux parades contre cette arme.' },
-  { name: 'Distrayante', kind: 'atout', desc: "Au lieu de blesser, fait reculer l'adversaire d'1 m par DR." },
-  { name: 'Piège Lame', kind: 'atout', desc: 'Sur un critique en défense contre une lame, tu peux la bloquer ou la briser.' },
-  { name: 'Incassable', kind: 'atout', desc: "Ne casse pas, ne rouille pas, ne s'émousse pas." },
-  { name: 'Pistolet', kind: 'atout', desc: 'Utilisable au corps à corps.' },
-  { name: 'Poudre Noire', kind: 'atout', desc: 'La cible visée teste son Calme (+20) ou devient Brisée.' },
-  { name: 'Explosion', kind: 'atout', rated: true, desc: "Touche tout le monde autour du point d'impact (rayon selon le niveau)." },
-  { name: 'Répétition', kind: 'atout', rated: true, desc: 'Plusieurs tirs avant de devoir recharger (selon le niveau).' },
+  { name: 'Accélératrice', kind: 'atout', desc: "Maniement fluide : bonus aux tests liés à son utilisation, enchaînement d'actions facilité." },
+  { name: 'Brisante', kind: 'atout', desc: 'Contre le matériel : dégâts accrus sur boucliers et armures, risque de les détériorer.' },
+  { name: 'Perforante', kind: 'atout', aliases: ['Pénétrant', 'Pénétrante'], desc: "Pénètre les défenses : les DR ou l'impact permettent d'ignorer une partie des PA de la cible." },
+  { name: 'Impact', kind: 'atout', aliases: ['Percutante'], desc: 'Arme lourde : dégâts supplémentaires ou dégâts de base bonifiés quand elle touche lourdement.' },
+  { name: 'Précise', kind: 'atout', auto: 'acc10', aliases: ['Minutieux', 'Minutieuse', 'Accurate'], desc: "+10 aux tests d'attaque ou de tir : arme bien balancée, facile à viser." },
+  { name: 'Empaleuse', kind: 'atout', aliases: ['Empalé', 'Perforante (à distance)'], desc: "Estoc ou tir : des DR élevés transforment les dégâts en blessures graves ou traversent les obstacles mous." },
+  { name: 'Défensive', kind: 'atout', auto: 'parry10', aliases: ['Défensif'], desc: '+10 au test de Corps à corps quand tu pares avec cette arme.' },
+  { name: 'Éreintante', kind: 'atout', aliases: ['Assommante', 'Contondante'], desc: "Neutralise sans tuer : facilite l'état Étourdi ou la fatigue chez la cible touchée." },
+  { name: 'Piègeuse', kind: 'atout', aliases: ['Entravante', 'Enchevêtré'], desc: "Accroche une arme ou un membre (filet, fouet) : facilite l'état Enchevêtré." },
+  { name: 'Magique', kind: 'atout', desc: 'Imprégnée de magie : touche les créatures éthérées ou immunisées aux attaques non magiques.' },
+  { name: 'Indestructible', kind: 'atout', aliases: ['Incassable'], desc: "Ne peut pas être brisée par une maladresse ou par les armes qui détruisent l'équipement." },
   { name: 'Bouclier', kind: 'atout', rated: true, desc: 'En parade, donne des PA sur tout le corps ; dès le niveau 2, pare aussi les projectiles.' },
   // Défauts
-  { name: 'Imprécise', kind: 'défaut', auto: 'hit-1', desc: '−1 DR quand tu attaques avec.' },
-  { name: 'Lent', kind: 'défaut', aliases: ['Lente'], desc: "Agit toujours en dernier ; l'adversaire a +1 DR pour se défendre." },
-  { name: 'Inoffensif', kind: 'défaut', aliases: ['Inoffensive'], desc: "PA de la cible doublés ; pas de minimum d'1 Blessure." },
-  { name: 'Épuisant', kind: 'défaut', aliases: ['Épuisante'], desc: "Impact et Endommageant ne jouent qu'au tour où tu charges." },
-  { name: 'Dangereuses', kind: 'défaut', aliases: ['Dangereuse'], desc: "Maladresse aussi sur un 9 aux unités en cas d'échec." },
-  { name: 'Rechargement', kind: 'défaut', rated: true, aliases: ['Recharge'], desc: 'Test étendu pour recharger (DR à atteindre selon le niveau).' },
+  { name: 'Fragile', kind: 'défaut', desc: "Mauvaise facture : sur une maladresse en attaque ou en parade, elle risque de se briser." },
+  { name: 'Lente', kind: 'défaut', aliases: ['Lent'], desc: "Arme lourde : tu agis après les adversaires plus rapides, sauf si tu as anticipé ton action." },
+  { name: 'Imprécise', kind: 'défaut', desc: "Mal balancée : malus aux tests d'attaque ou de tir." },
+  { name: 'Recharge', kind: 'défaut', rated: true, aliases: ['Rechargement'], desc: 'Il faut X actions ou rounds pour la recharger avant de tirer à nouveau.' },
+  { name: 'Encombrante', kind: 'défaut', desc: 'Lourde et difficile à manier dans les couloirs ou les pièces exiguës : malus de maniement.' },
+  { name: 'Court', kind: 'défaut', aliases: ['Courte'], desc: "Allonge très limitée (dague, gantelet) : désavantagée face aux armes d'hast ou épées longues à l'engagement." },
 ];
 
 // Qualités d'armure (résumés courts : voir le livre pour le détail)
@@ -344,7 +336,7 @@ export const ARMOUR_QUALITIES = [
   { name: 'Flexible', kind: 'atout', desc: 'Peut se porter sous une armure non flexible : les deux comptent.' },
   { name: 'Impénétrable', kind: 'atout', desc: 'Ignore les critiques obtenus sur un double impair (11, 33…).' },
   { name: 'Partiel', kind: 'défaut', desc: "Sur un jet pair ou un critique, l'attaquant ignore ces PA." },
-  { name: 'Points Faibles', kind: 'défaut', desc: 'Contre une arme Empalé qui fait un critique, ces PA sont ignorés.' },
+  { name: 'Points Faibles', kind: 'défaut', desc: 'Contre une arme Empaleuse qui fait un critique, ces PA sont ignorés.' },
 ];
 
 // Lit « Défensive, Recharge 2, Pointue » → { known: [{ q, rating }], other: ['Pointue'] }
@@ -370,6 +362,8 @@ export function shield(c) {
   return best;
 }
 
+// Bonus de parade de l'arme (Défensive : +10)
+export const parryBonus = (w) => (hasQuality(w, 'parry10') ? 10 : 0);
 export const hasQuality = (w, auto) => parseQualities(w?.qualities).known.some((k) => k.q.auto === auto);
 
 // Résultat d'un test d100 : réussite, degrés de réussite (DR), critique sur un double
