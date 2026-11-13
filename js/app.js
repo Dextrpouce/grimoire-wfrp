@@ -188,8 +188,29 @@ const plusBtn = (c, cost, act, data, inCareer = true) => (cost <= avail(c)
   : `<span class="cost-na">${cost} XP</span>`);
 
 // ================= Rendu =================
+let welcomeOpened = false;
+function renderWelcome() {
+  const st = store.status;
+  $app.innerHTML = `<div class="shell">
+    <header class="topbar">
+      <div class="who"><span class="crest">?</span><span class="who-txt"><div class="who-name">Aucun personnage</div><div class="who-sub">Crée ton premier personnage</div></span></div>
+      <button id="syncBtn" class="icon-btn sync-${st.state}" data-act="syncNow" title="${esc(st.message)}" aria-label="Synchronisation">${icon('cloud')}<span class="sync-dot"></span></button>
+      <button class="icon-btn" data-act="menu" aria-label="Menu">${icon('dots')}</button>
+    </header>
+    <main><section class="card welcome">
+      <h2>Bienvenue</h2>
+      <p>Commence par créer ton personnage : nom, race et carrière. Son schéma de carrière est chargé depuis la bibliothèque du groupe.</p>
+      <button class="btn gold block" data-act="newCharacter">${icon('plus')} Créer un personnage</button>
+      <p class="small muted" style="margin:14px 0 0">Tu as déjà un personnage sur un autre appareil ? Touche le <b>nuage</b> pour te connecter : il reviendra tout seul. Tu as un fichier ? Menu <b>⋮</b> › Importer.</p>
+    </section></main>
+  </div>`;
+  // À la première ouverture sans personnage : la fenêtre de création s'ouvre directement
+  if (!welcomeOpened && !dlg.open) { welcomeOpened = true; setTimeout(() => { if (!C() && !dlg.open) A.newCharacter(); }, 300); }
+}
+
 function render() {
   const c = C();
+  if (!c) { renderWelcome(); return; }
   if (ui.tab === 'magie' && !R.isCaster(c)) ui.tab = 'carnet';
   const y = window.scrollY;
   $app.innerHTML = `<div class="shell ${ui.levelUp ? 'lvl' : ''}">
@@ -1649,7 +1670,7 @@ const A = {
 
   // --- Personnages & menu ---
   characters() {
-    const cur = C();
+    const cur = C() || {};
     openDialog({
       title: 'Personnages',
       body: `<div class="char-list">${store.list().map((c) => `<button type="button" class="list-item ${c.id === cur.id ? 'current' : ''}" data-pick="${c.id}"><span class="crest" style="width:36px;height:36px;font-size:15px">${esc((c.name || '?').charAt(0).toUpperCase())}</span><span class="li-main"><div class="li-title">${esc(c.name)}</div><div class="li-sub">${esc([c.species, c.career.name].filter(Boolean).join(' · '))}</div></span>${c.id === cur.id ? icon('check') : ''}</button>`).join('')}</div>`,
@@ -1723,11 +1744,11 @@ const A = {
           <button type="button" class="btn ghost small" id="scareTry">Chaos</button>
           <button type="button" class="btn ghost small" id="purifyTry">Sigmar</button>
         </div>
-        <h3>Personnage</h3>
+        ${C() ? `<h3>Personnage</h3>
         <div class="row">
           <button type="button" class="btn ghost small" data-m="duplicate">Dupliquer</button>
           <button type="button" class="btn ghost small" style="color:var(--blood)" data-m="delete">${icon('trash')} Supprimer « ${esc(C().name)} »</button>
-        </div>`,
+        </div>` : ''}`,
       onOpen: (f) => {
         const saveCfg = () => {
           const before = JSON.stringify(m.firebase);
@@ -1749,10 +1770,12 @@ const A = {
         f.querySelector('#scareToggle').onchange = (e) => { localStorage.setItem('whfrp4.scare', e.target.checked ? 'on' : 'off'); };
         f.querySelector('#scareTry').onclick = () => {
           if (!f.querySelector('#scareToggle').checked) { toast("Active d'abord l'effet"); return; }
+          if (!C()) { toast('Crée d’abord un personnage'); return; }
           dlg.close(); corruptionScare(C());
         };
         f.querySelector('#purifyTry').onclick = () => {
           if (!f.querySelector('#scareToggle').checked) { toast("Active d'abord l'effet"); return; }
+          if (!C()) { toast('Crée d’abord un personnage'); return; }
           dlg.close(); purifyEffect(C());
         };
         const file = f.querySelector('#importFile');
@@ -1767,11 +1790,11 @@ const A = {
               : `${n} personnage(s) importé(s)`);
           } catch { toast('Fichier invalide'); }
         };
-        f.querySelector('[data-m=duplicate]').onclick = () => {
+        if (f.querySelector('[data-m=duplicate]')) f.querySelector('[data-m=duplicate]').onclick = () => {
           const copy = JSON.parse(JSON.stringify(C())); copy.id = R.uid(); copy.name += ' (copie)'; copy.updatedAt = Date.now();
           store.add(copy); dlg.close(); render(); toast('Personnage dupliqué');
         };
-        f.querySelector('[data-m=delete]').onclick = () => {
+        if (f.querySelector('[data-m=delete]')) f.querySelector('[data-m=delete]').onclick = () => {
           const c = C();
           setTimeout(() => confirmDialog('Supprimer le personnage ?', `« ${esc(c.name)} » sera supprimé sur tous tes appareils. Pense à l'exporter avant si tu veux le garder.`, 'Supprimer', () => { store.remove(c.id); render(); }), 50);
           dlg.close();

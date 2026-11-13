@@ -1,6 +1,6 @@
 // Données : toujours enregistrées sur l'appareil d'abord, puis envoyées en ligne dès que possible.
 import * as cloud from './cloud.js';
-import { newCharacter, upgradeCharacter } from './rules.js';
+import { upgradeCharacter } from './rules.js';
 import { FIREBASE_CONFIG } from './config.js';
 
 const DATA_KEY = 'whfrp4.data';
@@ -27,6 +27,12 @@ const libUid = () => Math.random().toString(36).slice(2, 10) + Date.now().toStri
 const normName = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
 const persistLib = () => localStorage.setItem(LIB_KEY, JSON.stringify(lib));
 const meta = load(META_KEY, { currentId: null, firebase: null, dirty: false, lastSync: 0, lastPush: 0 });
+// Anciens personnages provisoires jamais modifiés (créés automatiquement) : on les retire
+{
+  const stale = Object.values(data.characters).filter((c) => !c.updatedAt);
+  stale.forEach((c) => delete data.characters[c.id]);
+  if (stale.length) { if (stale.some((c) => c.id === meta.currentId)) meta.currentId = null; persist(); }
+}
 Object.values(data.characters).forEach(upgradeCharacter);
 
 let syncTimer = null;
@@ -72,15 +78,12 @@ export const store = {
   list() {
     return Object.values(data.characters).sort((a, b) => a.name.localeCompare(b.name));
   },
+  // Personnage affiché ; null s'il n'y en a aucun (l'appli propose alors d'en créer un)
   current() {
     let c = data.characters[meta.currentId];
     if (!c) {
-      c = this.list()[0];
-      if (!c) {
-        // Personnage provisoire : non envoyé en ligne tant qu'il n'est pas modifié
-        c = newCharacter(); c.updatedAt = 0; data.characters[c.id] = c;
-      }
-      meta.currentId = c.id; persist();
+      c = this.list()[0] || null;
+      if (c) { meta.currentId = c.id; persist(); }
     }
     return c;
   },
