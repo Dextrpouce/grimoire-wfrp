@@ -963,7 +963,10 @@ const moneyFields = (m = {}) => `<div class="fields four">${F.num('co', 'CO', m.
 const moneyOf = (f) => ({ co: num(f.co.value), pa: num(f.pa.value), sc: num(f.sc.value) });
 const groupAuthor = () => C()?.name || store.userEmail || 'Joueur';
 async function gDo(fn) {
-  try { await group.update(fn, groupAuthor()); } catch (e) { toast(e.message || 'Modification impossible'); }
+  try { await group.update(fn, groupAuthor()); } catch (e) {
+    toast(e.code === 'resource-exhausted' ? 'Limite gratuite de Firebase atteinte pour aujourd’hui : réessaie demain'
+      : e.code === 'permission-denied' ? 'Accès refusé : tu n’es plus membre de ce groupe ?' : (e.message || 'Modification impossible'));
+  }
 }
 const gDate = (t) => new Date(t).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) + ' ' + new Date(t).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 

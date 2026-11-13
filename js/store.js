@@ -36,6 +36,7 @@ const meta = load(META_KEY, { currentId: null, firebase: null, dirty: false, las
 Object.values(data.characters).forEach(upgradeCharacter);
 
 let syncTimer = null;
+let libPulledThisSession = false;
 let syncing = false;
 let again = false;
 const listeners = new Set();
@@ -230,9 +231,13 @@ export const store = {
       meta.lastSync = Date.now();
       meta.dirty = Object.values(data.characters).some((c) => (c.updatedAt || 0) > start);
       persist();
-      await syncLib('careers');
-      await syncLib('talents');
-      await syncLib('spells');
+      // La bibliothèque change rarement : relue à l'ouverture, sur demande (nuage) ou toutes les 6 h.
+      // Avant, elle était relue à chaque modification, ce qui épuisait la limite gratuite de Firebase.
+      const pullLibs = interactive || !libPulledThisSession || Date.now() - (meta.lastLibPull || 0) > 6 * 3600e3;
+      await syncLib('careers', pullLibs);
+      await syncLib('talents', pullLibs);
+      await syncLib('spells', pullLibs);
+      if (pullLibs) { libPulledThisSession = true; meta.lastLibPull = Date.now(); persist(); }
       setStatus(meta.dirty ? 'pending' : 'synced', `Synchronisé (${cloud.user().email})`, { reloaded: changed });
     } catch (e) {
       const msg = e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request' ? 'Connexion annulée'
@@ -240,6 +245,7 @@ export const store = {
         : e.code === 'auth/api-key-not-valid' || e.code?.startsWith('auth/invalid-api-key') ? 'Configuration Firebase invalide (apiKey)'
         : e.code === 'auth/unauthorized-domain' ? 'Domaine non autorisé dans Firebase (voir README)'
         : e.code === 'permission-denied' ? 'Accès refusé : vérifie les règles Firestore (voir README)'
+        : e.code === 'resource-exhausted' ? 'Limite gratuite de Firebase atteinte pour aujourd’hui : tes modifications restent sur l’appareil et partiront demain'
         : e.auth ? 'Touchez le nuage pour vous connecter' : (e.message || 'Erreur de synchronisation');
       setStatus(e.auth ? 'needauth' : 'error', msg);
     } finally {
@@ -277,7 +283,8 @@ function libRemove(kind, id) {
 }
 
 // Les bibliothèques ne bloquent jamais la synchro des personnages : une erreur ici est ignorée
-async function syncLib(kind) {
+// pull = relire toute la bibliothèque en ligne (coûteux : une lecture par carrière, talent ou sort)
+async function syncLib(kind, pull = true) {
   const { items, removed } = LIBS[kind];
   try {
     for (const id of [...lib[removed]]) {
@@ -289,6 +296,7 @@ async function syncLib(kind) {
       const saved = await cloud.saveLib(kind, t);
       lib[items][t.id] = { ...saved, id: t.id };
     }
+    if (!pull) { persistLib(); return; }
     const remote = await cloud.pullLib(kind);
     for (const [id, t] of Object.entries(remote)) {
       const local = lib[items][id];
@@ -326,7 +334,7 @@ function markDirty() {
 
 function scheduleSync() {
   clearTimeout(syncTimer);
-  syncTimer = setTimeout(() => store.sync(), 2000);
+  syncTimer = setTimeout(() => store.sync(), 4000);
 }
 
 // Fusion : pour chaque personnage, la version modifiée le plus récemment gagne
