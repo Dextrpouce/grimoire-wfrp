@@ -504,6 +504,12 @@ function viewSante(c) {
         </div>
         ${f.motivation ? `<p class="small" style="margin:10px 0 0"><b>Motivation :</b> ${esc(f.motivation)}</p>` : ''}
         <div class="row" style="margin-top:10px"><button class="btn ghost small" data-act="newSession">Nouvelle séance (Chance au max)</button></div>
+        <details class="fate-help"><summary>À quoi ça sert ?</summary>
+          <p><b>Chance</b> — dépense 1 point pour <b>relancer un test raté</b>, <b>ajouter +1 DR</b> à un test, ou <b>agir en premier</b> dans le round. Elle revient au maximum à chaque séance.</p>
+          <p><b>Détermination</b> — dépense 1 point pour <b>ignorer la peur et la psychologie</b>, ou <b>les malus d’une blessure critique</b>, jusqu’à la fin du round suivant ; ou pour <b>retirer tes états</b> (sauf Inconscient). Tu la regagnes en agissant selon ta <b>Motivation</b>.</p>
+          <p><b>Destin</b> et <b>Résilience</b> — on les <b>brûle</b>, et c’est définitif : un point de Destin pour <b>échapper à la mort</b>, un point de Résilience pour <b>échapper à une mutation</b>. Ce sont aussi les maximums de Chance et de Détermination.</p>
+          <p class="small muted">Résumé : les règles complètes sont dans ton livre.</p>
+        </details>
       </section>
     </div>
   </div>
