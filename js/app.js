@@ -51,8 +51,18 @@ function commit(rerender = true) {
 // ================= État de l'interface =================
 const ui = {
   tab: localStorage.getItem('whfrp4.tab') || 'fiche',
-  levelUp: false,
+  // Mode de la fiche : 'normal' (verrouillée), 'prog' (dépense d'XP), 'libre' (saisie sans coût)
+  mode: 'normal',
+  get levelUp() { return this.mode === 'prog'; },
+  set levelUp(v) { this.mode = v ? 'prog' : 'normal'; },
   skillFilter: localStorage.getItem('whfrp4.skillFilter') || 'all',
+};
+
+const isFree = () => ui.mode === 'libre';
+const MODES = {
+  normal: { label: 'Normal', icon: 'check', desc: 'Pour jouer : caractéristiques, compétences et talents sont verrouillés. Les toucher lance un test.' },
+  prog: { label: 'Progression', icon: 'star', desc: 'Dépenser l’XP gagnée : les boutons + augmentent caractéristiques, compétences et talents.' },
+  libre: { label: 'Libre', icon: 'edit', desc: 'Saisir un personnage déjà avancé ou corriger une erreur : tout se modifie sans coût d’XP.' },
 };
 
 const TABS = [
@@ -147,6 +157,21 @@ function careerTalentPicker(c, buying) {
     <div class="field full" id="ctChoice" hidden><label id="ctChoiceLbl">Précision</label><input name="ctSpec" placeholder="ex. Forêts, Vue, Nobles…"></div>`;
 }
 
+// Talent en lecture seule (modes normal et progression)
+function showTalentCard(c, t) {
+  const info = store.findTalent(t.name);
+  const max = R.talentMax(c, info?.max);
+  const inC = R.talentInCareer(c, t.name);
+  openDialog({
+    title: t.name,
+    body: `<p style="margin:0 0 8px"><b>Niveau ${+t.times || 0}</b>${max != null ? ` sur ${max} maximum` : ''}${inC ? ' · ◆ talent de carrière' : ''}</p>
+      ${info?.tests && info.tests !== '-' ? `<p class="small" style="margin:0 0 8px"><b>Tests :</b> ${esc(info.tests)}</p>` : ''}
+      <p style="margin:0 0 10px">${esc(t.desc || info?.desc || 'Pas de description.')}</p>
+      <p class="small muted" style="margin:0">${ui.levelUp ? 'Utilise le bouton + de la Fiche pour l’augmenter.' : 'Pour le modifier, passe en mode libre (bouton en haut).'}</p>`,
+    actions: [{ label: 'Fermer', cls: 'ghost', primary: true }],
+  });
+}
+
 // ================= XP =================
 function spend(c, cost, label, undo) {
   if (cost > avail(c)) { toast(`Il te manque ${cost - avail(c)} XP`); return false; }
@@ -213,8 +238,9 @@ function render() {
   if (!c) { renderWelcome(); return; }
   if (ui.tab === 'magie' && !R.isCaster(c)) ui.tab = 'carnet';
   const y = window.scrollY;
-  $app.innerHTML = `<div class="shell ${ui.levelUp ? 'lvl' : ''}">
+  $app.innerHTML = `<div class="shell ${ui.levelUp ? 'lvl' : ''} ${isFree() ? 'free' : ''}">
     ${topbar(c)}
+    ${isFree() ? `<div class="lvl-banner free-banner">${icon('edit')}<span><b>Mode libre</b> — les modifications ne coûtent pas d’XP. Touche une valeur pour la changer. <button class="btn small ghost" data-act="setMode" data-m="normal">Terminer</button></span></div>` : ''}
     ${ui.levelUp ? `<div class="lvl-banner">${icon('star')}<span><b>Mode progression</b> — ${avail(c)} XP à dépenser. Les boutons <b>+</b> dorés apparaissent quand tu as assez d'XP ; les rosés sont hors carrière (coût ×2).</span></div>` : ''}
     <main>${VIEWS[ui.tab](c)}</main>
     <nav class="tabs">${TABS.filter(([k]) => k !== 'magie' || R.isCaster(c)).map(([k, l, i]) => `<button class="${ui.tab === k ? 'active' : ''}" data-act="tab" data-tab="${k}">${icon(i)}<span>${l}</span></button>`).join('')}</nav>
@@ -233,7 +259,7 @@ function topbar(c) {
       <span class="crest">${esc((c.name || '?').trim().charAt(0).toUpperCase())}</span>
       <span class="who-txt"><div class="who-name">${esc(c.name || 'Sans nom')}</div><div class="who-sub">${esc(sub || 'Touchez pour gérer vos personnages')}</div></span>
     </button>
-    <button class="lvl-toggle ${ui.levelUp ? 'on' : ''}" data-act="toggleLevelUp">${icon('star')}<span>${avail(c)} XP</span></button>
+    <button class="lvl-toggle mode-${ui.mode} ${ui.levelUp ? 'on' : ''}" data-act="modeMenu" aria-label="Mode : ${MODES[ui.mode].label}">${icon(MODES[ui.mode].icon)}<span>${ui.mode === 'libre' ? 'Libre' : `${avail(c)} XP`}</span></button>
     <button id="syncBtn" class="icon-btn sync-${st.state}" data-act="syncNow" title="${esc(st.message)}" aria-label="Synchronisation">${icon('cloud')}<span class="sync-dot"></span></button>
     <button class="icon-btn" data-act="menu" aria-label="Menu">${icon('dots')}</button>
   </header>`;
@@ -301,7 +327,7 @@ function viewFiche(c) {
         <div class="stat"><div class="sk">Marche</div><div class="sv">${mv.walk}</div></div>
         <div class="stat"><div class="sk">Course</div><div class="sv">${mv.run}</div></div>
       </div>
-      <p class="small muted" style="margin:10px 0 0">Touchez une caractéristique pour la modifier librement. ◆ = dans votre carrière · ★ = bonus de talent.</p>
+      <p class="small muted" style="margin:10px 0 0">${isFree() ? 'Touche une caractéristique pour la modifier.' : 'Touche une caractéristique pour faire un test.'} ◆ = dans votre carrière · ★ = bonus de talent.</p>
     </section>
     <section class="card" style="grid-column: span 2">
       <h2>Compétences</h2>
@@ -309,12 +335,12 @@ function viewFiche(c) {
         ${[['all', 'Toutes'], ['acquired', 'Acquises'], ['career', 'Carrière ◆']].map(([k, l]) => `<button class="chip ${ui.skillFilter === k ? 'on' : ''}" data-act="skillFilter" data-f="${k}">${l}</button>`).join('')}
       </div>
       <div class="skills ${ui.levelUp ? '' : 'wide'}" style="--rows:${Math.max(1, Math.ceil(skills.length / 2))}">${skillRows}</div>
-      <div class="add-row"><button class="btn ghost small" data-act="addSkill">${icon('plus')} Compétence groupée ou avancée</button></div>
+      ${ui.mode === 'normal' ? '' : `<div class="add-row"><button class="btn ghost small" data-act="addSkill">${icon('plus')} Compétence groupée ou avancée</button></div>`}
     </section>
     <section class="card">
       <h2>Talents</h2>
       ${talents}
-      <div class="add-row"><button class="btn ${ui.levelUp ? 'gold' : 'ghost'} small" data-act="addTalent">${icon('plus')} ${ui.levelUp ? 'Acheter un talent' : 'Ajouter un talent'}</button></div>
+      ${ui.mode === 'normal' ? '' : `<div class="add-row"><button class="btn ${ui.levelUp ? 'gold' : 'ghost'} small" data-act="addTalent">${icon('plus')} ${ui.levelUp ? 'Acheter un talent' : 'Ajouter un talent'}</button></div>`}
     </section>
   </div>`;
 }
@@ -626,7 +652,7 @@ function viewProg(c) {
           <div class="stat"><div class="sk">Dépensée</div><div class="sv">${c.xp.spent}</div></div>
           <div class="stat"><div class="sk">Totale</div><div class="sv">${c.xp.total}</div></div>
         </div>
-        ${!+c.xp.spent && !c.xpLog.length ? '<p class="small muted" style="margin:8px 0 0">Personnage déjà avancé ? Touche les chiffres pour saisir l’XP déjà dépensée.</p>' : ''}
+        ${!+c.xp.spent && !c.xpLog.length ? `<p class="small muted" style="margin:8px 0 0">Personnage déjà avancé ? ${isFree() ? 'Touche les chiffres' : 'Passe en mode <b>libre</b> (bouton en haut) puis touche les chiffres'} pour saisir l’XP déjà dépensée.</p>` : ''}
         <div class="row" style="margin-top:12px">
           <button class="btn green" style="flex:1" data-act="gainXp">${icon('plus')} Gagner de l'XP</button>
           <button class="btn ${ui.levelUp ? 'ghost' : 'gold'}" style="flex:1" data-act="toggleLevelUp">${icon('star')} ${ui.levelUp ? 'Quitter la progression' : 'Mode progression'}</button>
@@ -919,7 +945,25 @@ const VIEWS = { fiche: viewFiche, sante: viewSante, sac: viewSac, prog: viewProg
 // ================= Actions =================
 const A = {
   tab(el) { ui.tab = el.dataset.tab; localStorage.setItem('whfrp4.tab', ui.tab); window.scrollTo(0, 0); render(); },
-  toggleLevelUp() { ui.levelUp = !ui.levelUp; if (ui.levelUp && ui.tab !== 'fiche' && ui.tab !== 'prog') ui.tab = 'fiche'; render(); },
+  toggleLevelUp() { A.setMode({ dataset: { m: ui.levelUp ? 'normal' : 'prog' } }); },
+  modeMenu() {
+    openDialog({
+      title: 'Mode de la fiche',
+      body: `<div class="mode-list">${Object.entries(MODES).map(([k, m]) => `<button type="button" class="mode-opt ${ui.mode === k ? 'sel' : ''}" data-m="${k}">
+        <span class="mode-ic">${icon(m.icon)}</span><span><b>${m.label}</b>${ui.mode === k ? ' <span class="tag">actuel</span>' : ''}<span class="small muted mode-d">${m.desc}</span></span></button>`).join('')}</div>`,
+      onOpen: (f) => f.querySelectorAll('.mode-opt').forEach((b) => b.onclick = () => { dlg.close(); A.setMode(b); }),
+      actions: [{ label: 'Fermer', cls: 'ghost' }],
+    });
+  },
+  setMode(el) {
+    const m = el.dataset.m;
+    const apply = () => { ui.mode = m; if (m === 'prog' && ui.tab !== 'fiche' && ui.tab !== 'prog') ui.tab = 'fiche'; render(); };
+    if (m === 'libre' && ui.mode !== 'libre') {
+      setTimeout(() => confirmDialog('Passer en mode libre ?', 'Les caractéristiques, compétences, talents et l’XP pourront être modifiés <b>sans coût d’XP</b>. À utiliser pour saisir un personnage déjà avancé ou corriger une erreur. Pense à revenir en mode normal ensuite.', 'Passer en mode libre', apply), 30);
+      return;
+    }
+    apply();
+  },
   skillFilter(el) { ui.skillFilter = el.dataset.f; localStorage.setItem('whfrp4.skillFilter', ui.skillFilter); render(); },
   noop() {},
 
@@ -953,6 +997,7 @@ const A = {
   undo() { undoLast(C()); },
   // Personnage déjà avancé : saisie directe de l'XP actuelle et dépensée (sans passer par l'historique)
   editXp() {
+    if (!isFree()) { toast('Passe en mode libre pour corriger l’XP'); return; }
     const c = C();
     openDialog({
       title: 'Corriger l’expérience',
@@ -984,6 +1029,7 @@ const A = {
 
   // --- Caractéristiques / compétences ---
   editChar(el) {
+    if (!isFree()) { A.rollChar(el); return; }
     const c = C(); const k = el.dataset.k; const ch = c.chars[k];
     openDialog({
       title: `${k} — ${R.CHARS.find((x) => x.key === k).name}`,
@@ -1001,6 +1047,7 @@ const A = {
     });
   },
   editSkill(el) {
+    if (!isFree()) { A.rollSkill(el); return; }
     const c = C(); const s = c.skills.find((x) => x.id === el.dataset.id);
     openDialog({
       title: R.skillLabel(s),
@@ -1022,6 +1069,7 @@ const A = {
     });
   },
   addSkill() {
+    if (ui.mode === 'normal') { toast('Passe en mode progression ou libre pour ajouter une compétence'); return; }
     openDialog({
       title: 'Nouvelle compétence',
       body: `<div class="fields">
@@ -1048,10 +1096,11 @@ const A = {
   },
 
   // --- Talents ---
-  addTalent() { A.editTalent({ dataset: { i: '-1' } }); },
+  addTalent() { if (ui.mode === 'normal') { toast('Passe en mode progression ou libre pour ajouter un talent'); return; } A.editTalent({ dataset: { i: '-1' } }); },
   buyCareerTalent(el) { A.editTalent({ dataset: { i: '-1', entry: el.dataset.entry, buy: '1' } }); },
   editTalent(el) {
     const c = C(); const i = +el.dataset.i; const t = c.talents[i];
+    if (t && !isFree()) { showTalentCard(c, t); return; }
     const buying = !t && (ui.levelUp || el.dataset.buy === '1');
     const picker = t ? '' : careerTalentPicker(c, buying);
     openDialog({
@@ -1726,7 +1775,7 @@ const A = {
           const tpl = store.findCareer(career);
           if (tpl) applyTemplate(c, tpl);
         }
-        store.add(c); ui.tab = 'fiche'; render();
+        store.add(c); ui.tab = 'fiche'; ui.mode = 'libre'; render();
         toast(career ? `${c.name}, ${career}${c.className ? ` (${c.className})` : ''}` : `${c.name} créé`);
       } }],
     });

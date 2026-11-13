@@ -599,3 +599,17 @@ label.chip:has(input:checked) { background: var(--blood); color: #fbe9d3; border
 .cost-na { display: inline-flex; align-items: center; gap: 2px; padding: 3px 9px; border-radius: 999px; border: 1px dashed var(--parch-edge);
   font-size: 13px; font-weight: 700; color: var(--ink-soft); opacity: .85; white-space: nowrap; }
 .cost-na svg { width: 12px; height: 12px; opacity: .7; }
+
+/* Modes de la fiche */
+.lvl-toggle.mode-libre { background: rgba(47, 93, 124, .35); border-color: #5b8db0; color: #d8e8f3; }
+.free-banner { background: linear-gradient(90deg, rgba(47, 93, 124, .35), rgba(47, 93, 124, .08)); border-color: rgba(120, 170, 205, .5); color: #d8e8f3; }
+.free-banner span { flex: 1; }
+.free-banner .btn { margin-left: 6px; vertical-align: middle; }
+.mode-list { display: flex; flex-direction: column; gap: 8px; }
+.mode-opt { display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 12px; text-align: left; border-radius: 12px;
+  border: 1px solid var(--line); background: rgba(255, 255, 255, .35); color: var(--ink); font: inherit; cursor: pointer; }
+.mode-opt.sel { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); background: rgba(201, 154, 62, .15); }
+.mode-opt b { font-family: var(--font-title); font-size: 15px; }
+.mode-d { display: block; margin-top: 3px; }
+.mode-ic { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: rgba(60, 40, 22, .1); flex-shrink: 0; }
+.mode-ic svg { width: 18px; height: 18px; }
