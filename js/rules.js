@@ -38,12 +38,16 @@ export const CLASSES = {
   'Érudits': ['Apothicaire', 'Ingénieur', 'Avocat', 'Nonne', 'Médecin', 'Prêtre', 'Érudit', 'Sorcier'],
   'Bourgeois': ['Agitateur', 'Artisan', 'Mendiant', 'Enquêteur', 'Marchand', 'Ratier', 'Citadin', 'Garde'],
   'Courtisans': ['Conseiller', 'Artiste', 'Duelliste', 'Émissaire', 'Noble', 'Serviteur', 'Espion', 'Intendant'],
-  'Paysans': ['Bailli', 'Sorcière de village', 'Herboriste', 'Chasseur', 'Mineur', 'Mystique', 'Éclaireur', 'Villageois'],
+  'Ruraux': ['Bailli', 'Sorcière de village', 'Herboriste', 'Chasseur', 'Mineur', 'Mystique', 'Éclaireur', 'Villageois'],
   'Itinérants': ['Chasseur de primes', 'Cocher', 'Saltimbanque', 'Flagellant', 'Messager', 'Colporteur', 'Patrouilleur routier', 'Répurgateur'],
   'Riverains': ['Batelier', 'Pilote fluvial', 'Patrouilleur fluvial', 'Riverain', 'Marin', 'Contrebandier', 'Débardeur', 'Naufrageur'],
   'Roublards': ['Entremetteur', 'Charlatan', 'Receleur', 'Pilleur de tombes', 'Hors-la-loi', 'Racketteur', 'Voleur', 'Sorcier sauvage'],
   'Guerriers': ['Cavalier', 'Garde du corps', 'Chevalier', 'Gladiateur', 'Spadassin', 'Soldat', 'Tueur', 'Prêtre guerrier'],
 };
+
+// Anciens noms de classe → nom actuel
+const CLASS_ALIASES = { Paysans: 'Ruraux' };
+export const canonClass = (name) => CLASS_ALIASES[name] || name || '';
 
 export function classOfCareer(name) {
   const n = norm(name);
@@ -516,6 +520,7 @@ export function upgradeCharacter(c) {
   for (const k of Object.keys(base)) if (c[k] === undefined) c[k] = base[k];
   for (const k of Object.keys(base.health)) if (c.health[k] === undefined) c.health[k] = base.health[k];
   for (const ch of CHARS) c.chars[ch.key] ??= { initial: 30, advances: 0, modifier: 0 };
+  c.className = canonClass(c.className);
   if (c.career?.levels) addCareerSkills(c);
   return c;
 }

@@ -752,7 +752,7 @@ function libraryList() {
   const all = store.careers();
   if (!all.length) return '<div class="empty">Aucun schéma pour l\'instant.</div>';
   const groups = {};
-  for (const t of all) (groups[t.className || 'Autres'] ||= []).push(t);
+  for (const t of all) (groups[R.canonClass(t.className) || 'Autres'] ||= []).push(t);
   return Object.keys(groups).sort((a, b) => a.localeCompare(b, 'fr')).map((g) => `<h3>${esc(g)}</h3>${groups[g].map((t) => `
     <div class="list-item" data-act="openCareerTemplate" data-id="${esc(t.id)}" role="button">
       <span class="li-main"><div class="li-title">${esc(t.name)}</div>
@@ -2201,7 +2201,7 @@ function careerGroups() {
   const groups = Object.entries(R.CLASSES).map(([cls, list]) => [cls, [...list]]);
   const others = [];
   for (const t of store.careers()) {
-    const g = groups.find(([cls]) => cls === t.className);
+    const g = groups.find(([cls]) => cls === R.canonClass(t.className));
     const target = g ? g[1] : others;
     if (!target.some((n) => R.norm(n) === R.norm(t.name))) target.push(t.name);
   }
@@ -2209,7 +2209,7 @@ function careerGroups() {
   return groups.map(([cls, names]) => [cls, names.sort((a, b) => a.localeCompare(b, 'fr'))]);
 }
 const isKnownCareer = (name) => careerGroups().some(([, names]) => names.some((n) => R.norm(n) === R.norm(name)));
-const classForCareer = (name) => R.classOfCareer(name) || store.findCareer(name)?.className || '';
+const classForCareer = (name) => R.classOfCareer(name) || R.canonClass(store.findCareer(name)?.className);
 
 function careerSelect(value, name = 'careerPick') {
   const custom = !!value && !isKnownCareer(value);
@@ -2289,7 +2289,7 @@ function applyTemplate(c, tpl) {
   c.career.name = tpl.name;
   c.career.path = tpl.path || '';
   c.career.levels = JSON.parse(JSON.stringify(tpl.levels));
-  if (tpl.className) c.className = tpl.className;
+  if (tpl.className) c.className = R.canonClass(tpl.className);
   R.addCareerSkills(c);
 }
 
