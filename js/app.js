@@ -249,7 +249,18 @@ function viewFiche(c) {
 
 // ---------- Combat (ancien onglet Santé) ----------
 // Gravure de Viollet-le-Duc (1874, domaine public), passée en encre sépia
-const FIGURE = '<img class="fig" src="img/armure.webp" alt="" loading="lazy">';
+// Illustration propre à la carrière quand elle existe (img/carrieres), sinon la gravure
+const CAREER_FIGURES = {
+  chasseur: ['chasseur'], marin: ['marin'], charlatan: ['charlatan'],
+  sorcier: ['sorcier', 'sorciere', 'sorcier sauvage', 'sorciere de village'],
+};
+function figure(c) {
+  const n = R.norm(c.career?.name);
+  const key = Object.keys(CAREER_FIGURES).find((k) => CAREER_FIGURES[k].includes(n));
+  return key
+    ? `<img class="fig career" src="img/carrieres/${key}.webp" alt="${esc(c.career.name)}" loading="lazy">`
+    : '<img class="fig" src="img/armure.webp" alt="" loading="lazy">';
+}
 
 function viewSante(c) {
   const wb = R.woundsBreakdown(c);
@@ -370,7 +381,7 @@ function viewSante(c) {
       <section class="card">
         <h2>Points d'armure</h2>
         <div class="body-map">
-          ${loc('tete')}${FIGURE}${loc('brasG')}
+          ${loc('tete')}${figure(c)}${loc('brasG')}
           ${loc('brasD')}${loc('corps')}
           ${loc('jambeD')}${loc('jambeG')}
           ${(() => {
