@@ -411,9 +411,17 @@ export function skillInCareer(c, s) {
   }));
 }
 
+// « Bon marcheur (au choix) » dans la carrière compte pour « Bon marcheur (Forêts) » ;
+// « Sans peur (Animaux) » compte aussi pour « Sans peur » ou le nom générique « Sans peur (Ennemi) »
+const GENERIC_SPEC = /choix|^(ennemi|terrain|sens|groupe|domaine|divinite|metier|menace|savoir)$/;
+const splitTalent = (s) => { const m = norm(s).match(/^(.*?)\s*\((.*)\)$/); return m ? [m[1].trim(), m[2].trim()] : [norm(s), '']; };
 export function talentInCareer(c, name) {
-  const n = norm(name);
-  return levelsUpTo(c).some((l) => (l.talents || []).some((x) => norm(x) === n));
+  const [base, spec] = splitTalent(name);
+  return levelsUpTo(c).some((l) => (l.talents || []).some((x) => {
+    const [xb, xs] = splitTalent(x);
+    if (xb.replace(/\s*\/\s*/g, '/') !== base.replace(/\s*\/\s*/g, '/')) return false;
+    return xs === spec || !xs || !spec || GENERIC_SPEC.test(xs) || GENERIC_SPEC.test(spec);
+  }));
 }
 
 // Conditions pour terminer l'échelon actuel
