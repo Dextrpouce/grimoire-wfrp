@@ -36,7 +36,7 @@ export const OTHER_SKILLS = [
 // Les 8 classes et leurs carrières (noms traduits de la VO : suggestions, le nom reste modifiable)
 export const CLASSES = {
   'Érudits': ['Apothicaire', 'Ingénieur', 'Avocat', 'Nonne', 'Médecin', 'Prêtre', 'Érudit', 'Sorcier'],
-  'Bourgeois': ['Agitateur', 'Artisan', 'Mendiant', 'Enquêteur', 'Marchand', 'Ratier', 'Citadin', 'Garde'],
+  'Citadins': ['Agitateur', 'Artisan', 'Mendiant', 'Enquêteur', 'Marchand', 'Ratier', 'Citadin', 'Garde'],
   'Courtisans': ['Conseiller', 'Artiste', 'Duelliste', 'Émissaire', 'Noble', 'Serviteur', 'Espion', 'Intendant'],
   'Ruraux': ['Bailli', 'Sorcière de village', 'Herboriste', 'Chasseur', 'Mineur', 'Mystique', 'Éclaireur', 'Villageois'],
   'Itinérants': ['Chasseur de primes', 'Cocher', 'Saltimbanque', 'Flagellant', 'Messager', 'Colporteur', 'Patrouilleur routier', 'Répurgateur'],
@@ -46,7 +46,7 @@ export const CLASSES = {
 };
 
 // Anciens noms de classe → nom actuel
-const CLASS_ALIASES = { Paysans: 'Ruraux' };
+const CLASS_ALIASES = { Paysans: 'Ruraux', Bourgeois: 'Citadins' };
 export const canonClass = (name) => CLASS_ALIASES[name] || name || '';
 
 export function classOfCareer(name) {
