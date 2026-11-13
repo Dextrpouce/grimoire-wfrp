@@ -483,11 +483,39 @@ export function newCharacter(name = 'Nouveau personnage', species = 'Humain') {
   };
 }
 
+// Ajoute à la fiche les compétences de carrière qui lui manquent (échelons atteints), à 0 augmentation.
+// « Projectiles (Fronde) » → Projectiles, spécialité Fronde ; « Dressage (au choix) » → Dressage sans spécialité.
+const SKILL_CHAR = Object.fromEntries([...BASIC_SKILLS, ...OTHER_SKILLS].map(([n, ch]) => [norm(n), ch]));
+export function addCareerSkills(c) {
+  const added = [];
+  for (const entry of levelsUpTo(c).flatMap((l) => l.skills || [])) {
+    const fake = (() => {
+      const m = String(entry).match(/^(.*?)\s*\((.*)\)\s*$/);
+      const name = (m ? m[1] : entry).trim();
+      const spec = m && !/choix|n.importe/.test(norm(m[2])) ? m[2].trim() : '';
+      return { name, spec };
+    })();
+    const full = norm(skillLabel(fake));
+    const has = c.skills.some((s) => {
+      const label = norm(skillLabel(s));
+      // Compétence de base sans spécialité (Discrétion) : couvre « Discrétion (Rurale) »
+      return label === full || norm(entry) === label || (norm(s.name) === norm(fake.name) && (!s.spec || !fake.spec));
+    });
+    if (has) continue;
+    const char = SKILL_CHAR[norm(fake.name)] || SKILL_CHAR[norm(entry)];
+    if (!char) continue; // compétence inconnue : à ajouter à la main
+    c.skills.push({ id: uid(), name: fake.name, spec: fake.spec, char, advances: 0, basic: false });
+    added.push(skillLabel(fake));
+  }
+  return added;
+}
+
 // Complète un personnage ancien avec les champs ajoutés depuis
 export function upgradeCharacter(c) {
   const base = newCharacter(c.name, c.species);
   for (const k of Object.keys(base)) if (c[k] === undefined) c[k] = base[k];
   for (const k of Object.keys(base.health)) if (c.health[k] === undefined) c.health[k] = base.health[k];
   for (const ch of CHARS) c.chars[ch.key] ??= { initial: 30, advances: 0, modifier: 0 };
+  if (c.career?.levels) addCareerSkills(c);
   return c;
 }

@@ -1563,6 +1563,7 @@ const A = {
             skills: lines(f[`skills${n}`].value), talents: lines(f[`talents${n}`].value),
           });
         }
+        R.addCareerSkills(c);
         commit();
         if (f.share.checked && k.name && k.levels.some((l) => l.skills.length || l.talents.length || l.chars.length)) {
           const existing = store.findCareer(k.name);
@@ -1620,7 +1621,7 @@ const A = {
     const c = C(); const lvl = R.careerLevel(c);
     const next = c.career.levels[lvl]?.title || `échelon ${lvl + 1}`;
     confirmDialog('Échelon suivant', `Devenir <b>${esc(next)}</b> pour ${R.LEVEL_UP_COST} XP ?`, 'Confirmer', () => {
-      if (spend(c, R.LEVEL_UP_COST, `Échelon ${lvl + 1} : ${next}`, { type: 'level', prev: lvl })) { c.career.level = lvl + 1; commit(); toast(`Tu es maintenant ${next} !`); }
+      if (spend(c, R.LEVEL_UP_COST, `Échelon ${lvl + 1} : ${next}`, { type: 'level', prev: lvl })) { c.career.level = lvl + 1; const added = R.addCareerSkills(c); commit(); toast(`Tu es maintenant ${next} !${added.length ? ` Nouvelles compétences : ${added.join(', ')}` : ''}`); }
     });
   },
   changeCareer() {
@@ -2200,6 +2201,7 @@ function applyTemplate(c, tpl) {
   c.career.path = tpl.path || '';
   c.career.levels = JSON.parse(JSON.stringify(tpl.levels));
   if (tpl.className) c.className = tpl.className;
+  R.addCareerSkills(c);
 }
 
 function editListItem(list, i, title, fields, defaults) {
