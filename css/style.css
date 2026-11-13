@@ -613,3 +613,9 @@ label.chip:has(input:checked) { background: var(--blood); color: #fbe9d3; border
 .mode-d { display: block; margin-top: 3px; }
 .mode-ic { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: rgba(60, 40, 22, .1); flex-shrink: 0; }
 .mode-ic svg { width: 18px; height: 18px; }
+
+/* Champs verrouillés hors du mode libre (Carnet) */
+.field input:disabled, .field select:disabled, .field textarea:disabled { background: transparent; border-style: dashed; color: var(--ink); -webkit-text-fill-color: var(--ink); opacity: 1; cursor: default; }
+.field select:disabled { appearance: none; -webkit-appearance: none; }
+.lock-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 0 10px; font-size: 14px; color: var(--ink-soft); }
+.free-banner .btn { background: #d8e8f3; color: #1d3a4f; border-color: #d8e8f3; }

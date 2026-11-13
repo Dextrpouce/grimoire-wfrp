@@ -764,27 +764,32 @@ function libraryList() {
 // ---------- Carnet ----------
 function viewCarnet(c) {
   const sp = Object.keys(R.SPECIES);
+  // Identité, Motivation, Destin et Résilience : modifiables seulement en mode libre
+  const lk = isFree() ? '' : 'disabled';
+  const lockNote = isFree() ? '' : `<p class="lock-note">🔒 Verrouillé hors du mode libre. <button type="button" class="btn ghost small" data-act="setMode" data-m="libre">Passer en mode libre</button></p>`;
   return `<div class="grid two">
     <div class="stack">
       <section class="card">
         <h2>Identité</h2>
+        ${lockNote}
         <div class="fields">
-          <div class="field full"><label>Nom</label>${bind('name', c.name, 'text', 'data-rerender')}</div>
-          <div class="field"><label>Race</label><select data-bind="species" data-rerender>${sp.map((s) => `<option ${s === c.species ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
-          <div class="field"><label>Carrière</label>${careerSelect(c.career.name, 'carnetCareer')}</div>
+          <div class="field full"><label>Nom</label>${bind('name', c.name, 'text', `data-rerender ${lk}`)}</div>
+          <div class="field"><label>Race</label><select data-bind="species" data-rerender ${lk}>${sp.map((s) => `<option ${s === c.species ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+          <div class="field"><label>Carrière</label>${careerSelect(c.career.name, 'carnetCareer').replace('<select', `<select ${lk}`)}</div>
           <div class="field"><label>Classe</label><div class="cls-auto">${esc(c.className || '—')}</div></div>
-          <div class="field"><label>Âge</label>${bind('age', c.age)}</div>
-          <div class="field"><label>Taille</label>${bind('height', c.height)}</div>
-          <div class="field"><label>Cheveux</label>${bind('hair', c.hair)}</div>
-          <div class="field"><label>Yeux</label>${bind('eyes', c.eyes)}</div>
+          <div class="field"><label>Âge</label>${bind('age', c.age, 'text', lk)}</div>
+          <div class="field"><label>Taille</label>${bind('height', c.height, 'text', lk)}</div>
+          <div class="field"><label>Cheveux</label>${bind('hair', c.hair, 'text', lk)}</div>
+          <div class="field"><label>Yeux</label>${bind('eyes', c.eyes, 'text', lk)}</div>
         </div>
       </section>
       <section class="card">
         <h2>Destin & Résilience</h2>
+        ${lockNote ? '<p class="lock-note">🔒 Verrouillé hors du mode libre (pour brûler un point de Destin ou de Résilience, passe en mode libre).</p>' : ''}
         <div class="fields">
-          <div class="field"><label>Destin</label>${bind('fate.fate', c.fate.fate, 'number', `min="0" data-full="${(+c.fate.fortune || 0) >= R.maxFortune(c) ? 1 : 0}"`)}</div>
-          <div class="field"><label>Résilience</label>${bind('fate.resilience', c.fate.resilience, 'number', `min="0" data-full="${(+c.fate.resolve || 0) >= R.maxResolve(c) ? 1 : 0}"`)}</div>
-          <div class="field full"><label>Motivation</label>${bind('fate.motivation', c.fate.motivation, 'text', 'placeholder="ex. Venger ma famille"')}</div>
+          <div class="field"><label>Destin</label>${bind('fate.fate', c.fate.fate, 'number', `min="0" ${lk} data-full="${(+c.fate.fortune || 0) >= R.maxFortune(c) ? 1 : 0}"`)}</div>
+          <div class="field"><label>Résilience</label>${bind('fate.resilience', c.fate.resilience, 'number', `min="0" ${lk} data-full="${(+c.fate.resolve || 0) >= R.maxResolve(c) ? 1 : 0}"`)}</div>
+          <div class="field full"><label>Motivation</label>${bind('fate.motivation', c.fate.motivation, 'text', `placeholder="ex. Venger ma famille" ${lk}`)}</div>
         </div>
         <p class="small muted" style="margin:0">Maximum de Chance : <b>${R.maxFortune(c)}</b>${R.luckBonus(c) ? ' (talent Chance compris)' : ''} · Maximum de Détermination : <b>${R.maxResolve(c)}</b>${R.strongMindBonus(c) ? " (talent Fort d'Esprit compris)" : ''}.
           Les points se dépensent dans l'onglet <b>Combat</b> ; « Nouvelle séance » y remet la Chance au maximum.</p>
