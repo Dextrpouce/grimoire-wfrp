@@ -173,6 +173,7 @@ export function talentMax(c, spec) {
   const s = String(spec ?? '').trim();
   if (!s) return null;
   if (/^\d+$/.test(s)) return +s;
+  if (/niveau de carriere|echelon/.test(norm(s))) return careerLevel(c);
   const k = maxChar(s);
   return k ? Math.max(1, charBonus(c, k)) : null;
 }
